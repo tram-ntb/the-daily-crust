@@ -26,48 +26,51 @@
 
     <div class="grid grid-cols-1 gap-4 lg:grid-cols-12">
 
-        {{-- Cột 1: danh mục --}}
-        <aside class="rounded-xl border border-stone-200 bg-white p-4 shadow-sm lg:col-span-2">
-            <h2 class="mb-2 text-xs font-bold uppercase tracking-wider text-mint-900"><i class="fa-solid fa-utensils mr-1 text-mint-700"></i>Danh mục</h2>
-            <div class="flex flex-wrap gap-2 lg:block lg:space-y-1">
-                <button @click="cats = []" class="rounded-lg px-3 py-1.5 text-left text-sm lg:w-full" :class="cats.length === 0 ? 'bg-mint-700 text-white' : 'text-stone-700 hover:bg-[#d8e8d2]'">Tất cả</button>
-                @foreach ($categories as $name => $count)
-                    <button @click="toggleCat(@js($name))"
-                            class="flex items-center justify-between rounded-lg px-3 py-1.5 text-left text-sm lg:w-full"
-                            :class="cats.includes(@js($name)) ? 'bg-mint-700 text-white' : 'text-stone-700 hover:bg-[#d8e8d2]'">
-                        <span>{{ $name }}</span><span class="ml-2 text-xs opacity-70">{{ $count }}</span>
-                    </button>
-                @endforeach
-            </div>
-        </aside>
+        {{-- Cột bên trái chứa Danh mục (thanh ngang) và Lưới sản phẩm --}}
+        <div class="space-y-4 lg:col-span-8">
+            {{-- Thanh danh mục ngang (nằm trên cột lưới sản phẩm) --}}
+            <aside class="rounded-xl border border-stone-200 bg-white p-3 shadow-sm">
+                <h2 class="mb-2 text-xs font-bold uppercase tracking-wider text-mint-900"><i class="fa-solid fa-utensils mr-1 text-mint-700"></i>Danh mục</h2>
+                <div class="flex flex-wrap gap-2">
+                    <button @click="cats = []" class="rounded-lg px-3 py-1.5 text-xs font-semibold" :class="cats.length === 0 ? 'bg-mint-700 text-white' : 'text-stone-700 bg-stone-100 hover:bg-[#d8e8d2]'">Tất cả</button>
+                    @foreach ($categories as $name =>$count)
+                        <button @click="toggleCat(@js($name))"
+                                class="flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-semibold"
+                                :class="cats.includes(@js($name)) ? 'bg-mint-700 text-white' : 'text-stone-700 bg-stone-100 hover:bg-[#d8e8d2]'">
+                            <span>{{ $name }}</span><span class="rounded-full bg-white/20 px-1.5 py-0.2 text-[10px] opacity-80">{{ $count }}</span>
+                        </button>
+                    @endforeach
+                </div>
+            </aside>
 
-        {{-- Cột 2: lưới sản phẩm --}}
-        <section class="lg:col-span-6">
-            <div class="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-3">
-                <template x-for="p in filtered" :key="p.id">
-                    <button type="button" @click="add(p)" :disabled="p.stock <= 0"
-                            class="flex gap-3 rounded-xl border border-stone-200 bg-white p-2.5 text-left shadow-sm transition hover:border-mint-700 hover:shadow-md disabled:cursor-not-allowed disabled:opacity-50">
-                        <div class="flex h-16 w-16 flex-none items-center justify-center overflow-hidden rounded-lg bg-stone-100">
-                            <template x-if="p.image"><img :src="p.image" :alt="p.name" class="h-full w-full object-cover"></template>
-                            <template x-if="!p.image"><i class="fa-solid fa-bread-slice text-2xl text-stone-300"></i></template>
-                        </div>
-                        <div class="min-w-0 flex-1">
-                            <div class="flex items-start justify-between gap-2">
-                                <span class="text-sm font-bold leading-tight text-stone-900" x-text="p.name"></span>
-                                <span class="whitespace-nowrap text-sm font-bold text-mint-700" x-text="fmt(p.price)"></span>
+            {{-- Lưới sản phẩm --}}
+            <section>
+                <div class="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-3">
+                    <template x-for="p in filtered" :key="p.id">
+                        <button type="button" @click="add(p)" :disabled="p.stock <= 0"
+                                class="flex gap-3 rounded-xl border border-stone-200 bg-white p-2.5 text-left shadow-sm transition hover:border-mint-700 hover:shadow-md disabled:cursor-not-allowed disabled:opacity-50">
+                            <div class="flex h-16 w-16 flex-none items-center justify-center overflow-hidden rounded-lg bg-stone-100">
+                                <template x-if="p.image"><img :src="p.image" :alt="p.name" class="h-full w-full object-cover"></template>
+                                <template x-if="!p.image"><i class="fa-solid fa-bread-slice text-2xl text-stone-300"></i></template>
                             </div>
-                            <p class="mt-0.5 truncate text-xs text-stone-400" x-text="p.sub"></p>
-                            <span class="mt-1 inline-block rounded-full px-2 py-0.5 text-[11px] font-semibold"
-                                  :class="p.stock <= 0 ? 'bg-red-100 text-red-700' : (p.stock <= 5 ? 'bg-amber-100 text-amber-800' : 'bg-emerald-50 text-emerald-700')"
-                                  x-text="p.stock <= 0 ? 'Hết hàng' : 'Còn ' + p.stock"></span>
-                        </div>
-                    </button>
-                </template>
-            </div>
-            <p x-show="filtered.length === 0" x-cloak class="rounded-xl border border-dashed border-stone-300 bg-white p-8 text-center text-stone-400">Không có sản phẩm phù hợp.</p>
-        </section>
+                            <div class="min-w-0 flex-1">
+                                <div class="flex items-start justify-between gap-2">
+                                    <span class="text-sm font-bold leading-tight text-stone-900" x-text="p.name"></span>
+                                    <span class="whitespace-nowrap text-sm font-bold text-mint-700" x-text="fmt(p.price)"></span>
+                                </div>
+                                <p class="mt-0.5 truncate text-xs text-stone-400" x-text="p.sub"></p>
+                                <span class="mt-1 inline-block rounded-full px-2 py-0.5 text-[11px] font-semibold"
+                                      :class="p.stock <= 0 ? 'bg-red-100 text-red-700' : (p.stock <= 5 ? 'bg-amber-100 text-amber-800' : 'bg-emerald-50 text-emerald-700')"
+                                      x-text="p.stock <= 0 ? 'Hết hàng' : 'Còn ' + p.stock"></span>
+                            </div>
+                        </button>
+                    </template>
+                </div>
+                <p x-show="filtered.length === 0" x-cloak class="rounded-xl border border-dashed border-stone-300 bg-white p-8 text-center text-stone-400">Không có sản phẩm phù hợp.</p>
+            </section>
+        </div>
 
-        {{-- Cột 3: giỏ hàng --}}
+        {{-- Cột bên phải: giỏ hàng --}}
         <aside class="lg:col-span-4">
             <div class="sticky top-24 space-y-3 rounded-xl border border-stone-200 bg-white p-4 shadow-sm">
                 <div class="flex items-center justify-between">
@@ -75,20 +78,35 @@
                     <button @click="clear()" x-show="count > 0" x-cloak class="text-xs font-semibold text-red-600 hover:underline">Xóa hết</button>
                 </div>
 
-                <div class="max-h-[40vh] space-y-2 overflow-y-auto pr-1">
+                <div class="max-h-[45vh] space-y-2.5 overflow-y-auto pr-1">
                     <template x-for="l in lines" :key="l.id">
-                        <div class="flex items-center gap-2 rounded-lg bg-stone-50 p-2">
-                            <div class="min-w-0 flex-1">
-                                <p class="truncate text-sm font-semibold text-stone-800" x-text="l.name"></p>
-                                <p class="text-xs text-stone-400" x-text="fmt(l.price)"></p>
+                        <div class="flex gap-2.5 rounded-lg bg-stone-50 p-2 border border-stone-100 items-center">
+                            {{-- Hình ảnh sản phẩm trong giỏ hàng --}}
+                            <div class="flex h-12 w-12 flex-none items-center justify-center overflow-hidden rounded-md bg-stone-200/60 border border-stone-200">
+                                <template x-if="l.image"><img :src="l.image" :alt="l.name" class="h-full w-full object-cover"></template>
+                                <template x-if="!l.image"><i class="fa-solid fa-bread-slice text-lg text-stone-400"></i></template>
                             </div>
-                            <div class="flex items-center gap-1">
-                                <button @click="dec(l.id)" class="h-7 w-7 rounded-md border border-stone-300 bg-white text-stone-600 hover:bg-stone-100">−</button>
-                                <span class="w-7 text-center text-sm font-bold" x-text="l.qty"></span>
-                                <button @click="inc(l.id)" class="h-7 w-7 rounded-md border border-stone-300 bg-white text-stone-600 hover:bg-stone-100">+</button>
+
+                            <div class="min-w-0 flex-1 space-y-1">
+                                {{-- Hàng 1: Tên sản phẩm chính và Đơn giá màu xanh lá --}}
+                                <div class="flex items-start justify-between gap-2">
+                                    <span class="text-sm font-bold text-stone-900 leading-tight" x-text="l.name"></span>
+                                    <span class="text-sm font-bold text-mint-700 whitespace-nowrap" x-text="fmt(l.price)"></span>
+                                </div>
+                                
+                                {{-- Hàng 2: Tên phụ, bộ tăng giảm số lượng và nút xóa (đã xóa giá màu đen) --}}
+                                <div class="flex items-center justify-between gap-1 pt-1 border-t border-stone-200/60">
+                                    <span class="text-xs text-stone-400 truncate max-w-[110px]" x-text="l.sub"></span>
+                                    <div class="flex items-center gap-2">
+                                        <div class="flex items-center gap-0.5">
+                                            <button @click="dec(l.id)" class="h-6 w-6 rounded border border-stone-300 bg-white text-stone-600 hover:bg-stone-100 flex items-center justify-center text-xs">−</button>
+                                            <span class="w-6 text-center text-xs font-bold" x-text="l.qty"></span>
+                                            <button @click="inc(l.id)" class="h-6 w-6 rounded border border-stone-300 bg-white text-stone-600 hover:bg-stone-100 flex items-center justify-center text-xs">+</button>
+                                        </div>
+                                        <button @click="remove(l.id)" class="text-stone-400 hover:text-red-600 px-1"><i class="fa-solid fa-trash-can text-xs"></i></button>
+                                    </div>
+                                </div>
                             </div>
-                            <span class="w-20 text-right text-sm font-bold text-stone-800" x-text="fmt(l.subtotal)"></span>
-                            <button @click="remove(l.id)" class="text-stone-400 hover:text-red-600"><i class="fa-solid fa-trash-can text-xs"></i></button>
                         </div>
                     </template>
                     <p x-show="count === 0" class="py-8 text-center text-sm text-stone-400">Chọn sản phẩm bên trái để thêm vào giỏ.</p>
@@ -198,7 +216,7 @@
             get lines() {
                 return Object.entries(this.cart).map(([id, qty]) => {
                     const p = this.byId[id];
-                    return { id: Number(id), name: p.name, price: p.price, qty, subtotal: p.price * qty };
+                    return { id: Number(id), name: p.name, sub: p.sub, price: p.price, image: p.image, qty, subtotal: p.price * qty };
                 });
             },
             get count() { return Object.values(this.cart).reduce((a, b) => a + b, 0); },

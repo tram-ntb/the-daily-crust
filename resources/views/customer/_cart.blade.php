@@ -12,42 +12,64 @@
     <div x-show="open" x-cloak class="fixed inset-0 z-50 flex justify-end bg-black/40" @keydown.escape.window="open = false" @click.self="open = false">
         <aside class="flex h-full w-full max-w-md flex-col bg-white shadow-2xl">
             <div class="flex items-center justify-between border-b border-stone-200 px-5 py-4">
-                <h2 class="text-lg font-bold text-mint-900"><i class="fa-solid fa-basket-shopping mr-2 text-mint-700"></i>Giỏ hàng của bạn</h2>
-                <button @click="open = false" class="text-stone-400 hover:text-stone-700"><i class="fa-solid fa-xmark text-xl"></i></button>
+                <div class="flex items-center gap-2">
+                    <h2 class="text-lg font-bold text-mint-900"><i class="fa-solid fa-basket-shopping mr-2 text-mint-700"></i>Giỏ hàng <span class="text-sm font-normal text-stone-400" x-text="'(' + $store.cart.count + ' món)'"></span></h2>
+                </div>
+                <div class="flex items-center gap-3">
+                    <button @click="$store.cart.clear()" x-show="$store.cart.count > 0" x-cloak class="text-xs font-semibold text-red-600 hover:underline">Xóa hết</button>
+                    <button @click="open = false" class="text-stone-400 hover:text-stone-700"><i class="fa-solid fa-xmark text-xl"></i></button>
+                </div>
             </div>
 
             <form method="POST" action="{{ route('orders.store') }}" class="flex min-h-0 flex-1 flex-col"
-                  x-data="{ delivery: 'In_Store' }" @submit="if ($store.cart.count === 0) $event.preventDefault()">
+                  x-data="{ delivery: 'In_Store' }" @submit="if ($store.cart.count === 0)$event.preventDefault()">
                 @csrf
 
-                <div class="flex-1 space-y-4 overflow-y-auto px-5 py-4">
+                <div class="flex-1 space-y-3 overflow-y-auto px-5 py-4">
                     @if ($errors->any())
                         <ul class="list-disc space-y-0.5 rounded-lg bg-red-50 px-5 py-2 text-sm text-red-700">
-                            @foreach ($errors->all() as $e)<li>{{ $e }}</li>@endforeach
+                            @foreach ($errors->all() as $e)<li>{{$e }}</li>@endforeach
                         </ul>
                     @endif
 
-                    <div class="space-y-2">
+                    <div class="space-y-2.5">
                         <template x-for="(l, i) in $store.cart.items" :key="l.id">
-                            <div class="flex items-center gap-2 rounded-lg bg-stone-50 p-2.5">
+                            <div class="flex gap-2.5 rounded-lg bg-stone-50 p-2 border border-stone-100 items-center">
                                 <input type="hidden" :name="`items[${i}][product_id]`" :value="l.id">
                                 <input type="hidden" :name="`items[${i}][qty]`" :value="l.qty">
-                                <div class="min-w-0 flex-1">
-                                    <p class="truncate text-sm font-semibold text-stone-800" x-text="l.name"></p>
-                                    <p class="text-xs text-stone-400" x-text="$store.cart.fmt(l.price)"></p>
+
+                                {{-- Hình ảnh sản phẩm trong giỏ hàng --}}
+                                <div class="flex h-12 w-12 flex-none items-center justify-center overflow-hidden rounded-md bg-stone-200/60 border border-stone-200">
+                                    <template x-if="l.image"><img :src="l.image" :alt="l.name" class="h-full w-full object-cover"></template>
+                                    <template x-if="!l.image"><i class="fa-solid fa-bread-slice text-lg text-stone-400"></i></template>
                                 </div>
-                                <div class="flex items-center gap-1">
-                                    <button type="button" @click="$store.cart.dec(l.id)" class="h-7 w-7 rounded-md border border-stone-300 bg-white hover:bg-stone-100">−</button>
-                                    <span class="w-7 text-center text-sm font-bold" x-text="l.qty"></span>
-                                    <button type="button" @click="$store.cart.inc(l.id)" class="h-7 w-7 rounded-md border border-stone-300 bg-white hover:bg-stone-100">+</button>
+
+                                <div class="min-w-0 flex-1 space-y-1">
+                                    {{-- Hàng 1: Tên sản phẩm chính và Đơn giá màu xanh lá --}}
+                                    <div class="flex items-start justify-between gap-2">
+                                        <span class="text-sm font-bold text-stone-900 leading-tight" x-text="l.name"></span>
+                                        <span class="text-sm font-bold text-mint-700 whitespace-nowrap" x-text="$store.cart.fmt(l.price)"></span>
+                                    </div>
+                                    
+                                    {{-- Hàng 2: Tên phụ, bộ tăng giảm số lượng và nút xóa --}}
+                                    <div class="flex items-center justify-between gap-1 pt-1 border-t border-stone-200/60">
+                                        <span class="text-xs text-stone-400 truncate max-w-[110px]" x-text="l.sub"></span>
+                                        <div class="flex items-center gap-2">
+                                            <div class="flex items-center gap-0.5">
+                                                <button type="button" @click="$store.cart.dec(l.id)" class="h-6 w-6 rounded border border-stone-300 bg-white text-stone-600 hover:bg-stone-100 flex items-center justify-center text-xs">−</button>
+                                                <span class="w-6 text-center text-xs font-bold" x-text="l.qty"></span>
+                                                <button type="button" @click="$store.cart.inc(l.id)" class="h-6 w-6 rounded border border-stone-300 bg-white text-stone-600 hover:bg-stone-100 flex items-center justify-center text-xs">+</button>
+                                            </div>
+                                            <button type="button" @click="$store.cart.remove(l.id)" class="text-stone-400 hover:text-red-600 px-1"><i class="fa-solid fa-trash-can text-xs"></i></button>
+                                        </div>
+                                    </div>
                                 </div>
-                                <span class="w-20 text-right text-sm font-bold" x-text="$store.cart.fmt(l.price * l.qty)"></span>
                             </div>
                         </template>
                         <p x-show="$store.cart.count === 0" class="py-10 text-center text-sm text-stone-400">Giỏ hàng đang trống. Bấm biểu tượng giỏ trên sản phẩm để thêm.</p>
                     </div>
 
-                    <div x-show="$store.cart.count > 0" class="space-y-3">
+                    <div x-show="$store.cart.count > 0" class="space-y-3 pt-2">
                         <div>
                             <p class="mb-1 text-xs font-bold uppercase tracking-wider text-stone-500">Nhận hàng</p>
                             <div class="grid grid-cols-2 gap-2">
@@ -107,9 +129,9 @@
             fmt(n) { return new Intl.NumberFormat('vi-VN').format(n) + ' đ'; },
             add(p) {
                 const l = this.items.find(x => x.id === p.id);
-                if (l) { if (l.qty < 99) l.qty++; } else { this.items.push({ id: p.id, name: p.name, price: p.price, qty: 1 }); }
+                if (l) { if (l.qty < 99) l.qty++; } else { this.items.push({ id: p.id, name: p.name, sub: p.sub, price: p.price, image: p.image, qty: 1 }); }
                 this.save();
-                window.dispatchEvent(new CustomEvent('open-cart'));
+                // Đã gỡ bỏ sự kiện tự động mở giỏ hàng (window.dispatchEvent) tại đây
             },
             inc(id) { const l = this.items.find(x => x.id === id); if (l && l.qty < 99) { l.qty++; this.save(); } },
             dec(id) {
@@ -118,6 +140,7 @@
                 if (l.qty > 1) l.qty--; else this.items = this.items.filter(x => x.id !== id);
                 this.save();
             },
+            remove(id) { this.items = this.items.filter(x => x.id !== id); this.save(); },
             clear() { this.items = []; this.save(); },
         });
     });

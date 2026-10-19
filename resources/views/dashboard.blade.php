@@ -92,7 +92,7 @@
                             </span>
                             @auth
                                 <button type="button"
-                                        @click="$store.cart.add({ id: {{ $product->product_id }}, name: @js($product->vi_name), price: {{ (int) $product->price }} })"
+                                        @click="$store.cart.add({ id: {{ $product->product_id }}, name: @js($product->vi_name), sub: @js($product->item), price: {{ (int) $product->price }}, image: @js($product->image_url ? asset($product->image_url) : null) })"
                                         class="w-10 h-10 rounded-lg bg-emerald-50 text-mint-700 hover:bg-mint-700 hover:text-white transition flex items-center justify-center shadow-xs" title="Thêm vào giỏ hàng">
                                     <i class="fa-solid fa-cart-plus text-base"></i>
                                 </button>
