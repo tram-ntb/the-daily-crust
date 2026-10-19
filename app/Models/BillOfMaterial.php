@@ -2,22 +2,27 @@
 
 namespace App\Models;
 
-use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
-class BillOfMaterial extends Model
+/** Định mức nguyên liệu cho 1 đơn vị sản phẩm (bảng `bill_of_materials`). */
+class BillOfMaterial extends BakeryModel
 {
     protected $table = 'bill_of_materials';
 
     protected $primaryKey = 'bom_id';
 
-    public $timestamps = false;
+    protected function casts(): array
+    {
+        return ['quantity_required' => 'float'];
+    }
 
-    protected $fillable = [
-        'product_id',
-        'product_name',
-        'ingredient_id',
-        'ingredient_name',
-        'quantity_required',
-        'unit',
-    ];
+    public function product(): BelongsTo
+    {
+        return $this->belongsTo(Product::class, 'product_id', 'product_id');
+    }
+
+    public function ingredient(): BelongsTo
+    {
+        return $this->belongsTo(Ingredient::class, 'ingredient_id', 'ingredient_id');
+    }
 }

@@ -2,23 +2,15 @@
 
 namespace App\Models;
 
-use Illuminate\Database\Eloquent\Model;
-
-class ProductStockTransaction extends Model
+/** Nhật ký giao dịch kho thành phẩm (bảng `product_stock_transactions`). */
+class ProductStockTransaction extends BakeryModel
 {
     protected $table = 'product_stock_transactions';
 
     protected $primaryKey = 'transaction_id';
 
-    public $timestamps = false;
-
-    protected $fillable = [
-        'product_id',
-        'lot_id',
-        'transaction_type',
-        'quantity',
-        'reference_type',
-        'reference_id',
-        'transaction_date',
-    ];
+    protected function casts(): array
+    {
+        return ['transaction_date' => 'datetime'];
+    }
 }

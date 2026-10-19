@@ -6,12 +6,24 @@ use Illuminate\Support\Facades\Schema;
 
 return new class extends Migration
 {
+    /**
+     * Bật AUTO_INCREMENT cho users.user_id NẾU cột chưa tự tăng (dump hiện tại thường đã tự tăng sẵn).
+     *
+     * Giữ kiểu INT có dấu (signed), KHÔNG đổi sang unsigned: các bảng khác (production_plans.approved_by,
+     * orders.created_by, ...) tham chiếu user_id bằng INT có dấu, đổi kiểu sẽ làm lệch khóa ngoại.
+     */
     public function up(): void
     {
+        $column = collect(Schema::getColumns('users'))->firstWhere('name', 'user_id');
+
+        if (! $column || ($column['auto_increment'] ?? false)) {
+            return;
+        }
+
         Schema::disableForeignKeyConstraints();
 
         Schema::table('users', function (Blueprint $table): void {
-            $table->increments('user_id')->change();
+            $table->integer('user_id', true)->change();
         });
 
         Schema::enableForeignKeyConstraints();
@@ -19,12 +31,6 @@ return new class extends Migration
 
     public function down(): void
     {
-        Schema::disableForeignKeyConstraints();
-
-        Schema::table('users', function (Blueprint $table): void {
-            $table->integer('user_id')->change();
-        });
-
-        Schema::enableForeignKeyConstraints();
+        // Không hoàn tác: bỏ AUTO_INCREMENT của khóa chính không mang lại lợi ích và có thể gây lỗi.
     }
 };

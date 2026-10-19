@@ -2,23 +2,43 @@
 
 namespace App\Models;
 
-use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Relations\HasMany;
 
-class StocktakeSession extends Model
+/** Phiên kiểm kê kho (bảng `stocktake_sessions`). */
+class StocktakeSession extends BakeryModel
 {
+    public const IN_PROGRESS = 'In_Progress';
+
+    public const PENDING_APPROVAL = 'Pending_Approval';
+
+    public const COMPLETED = 'Completed';
+
     protected $table = 'stocktake_sessions';
 
     protected $primaryKey = 'stocktake_id';
 
-    public $timestamps = false; // Hoặc true nếu có cột created_at/updated_at
+    protected function casts(): array
+    {
+        return [
+            'stocktake_date' => 'datetime',
+            'created_at' => 'datetime',
+            'updated_at' => 'datetime',
+        ];
+    }
 
-    protected $fillable = [
-        'stocktake_date', 'session_name', 'status',
-        'created_by', 'approved_by', 'approved_at', 'note',
-    ];
-
-    public function details()
+    public function details(): HasMany
     {
         return $this->hasMany(StocktakeDetail::class, 'stocktake_id', 'stocktake_id');
+    }
+
+    public function creator(): BelongsTo
+    {
+        return $this->belongsTo(User::class, 'created_by', 'user_id');
+    }
+
+    public function isEditable(): bool
+    {
+        return $this->status === self::IN_PROGRESS;
     }
 }

@@ -2,18 +2,37 @@
 
 namespace App\Models;
 
-use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\Relations\HasMany;
 
-class Product extends Model
+/** Sản phẩm / thành phẩm (bảng `products`). Tồn kho thành phẩm nằm ở các lô `product_lots`. */
+class Product extends BakeryModel
 {
     protected $table = 'products';
 
     protected $primaryKey = 'product_id';
 
-    public $timestamps = false; // Hoặc true tùy cấu trúc bảng sản phẩm của bạn
+    public function lots(): HasMany
+    {
+        return $this->hasMany(ProductLot::class, 'product_id', 'product_id');
+    }
 
-    protected $fillable = [
-        'item', 'vi_name', 'price', 'category', 'image_url',
-        'expiry_duration_day', 'status', 'description',
-    ];
+    public function orderDetails(): HasMany
+    {
+        return $this->hasMany(OrderDetail::class, 'product_id', 'product_id');
+    }
+
+    public function boms(): HasMany
+    {
+        return $this->hasMany(BillOfMaterial::class, 'product_id', 'product_id');
+    }
+
+    /** Giá vốn nguyên liệu của 1 sản phẩm = Σ(định mức BOM × giá vốn nguyên liệu). */
+    public function unitCost(): int
+    {
+        $this->loadMissing('boms.ingredient');
+
+        return (int) round($this->boms->sum(
+            fn (BillOfMaterial $bom) => $bom->quantity_required * ($bom->ingredient->cost_price_vn ?? 0)
+        ));
+    }
 }

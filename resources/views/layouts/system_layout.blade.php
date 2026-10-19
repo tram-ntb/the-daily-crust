@@ -29,12 +29,12 @@
     <script src="https://code.jquery.com/jquery-3.7.0.min.js"></script>
     <link rel="stylesheet" href="https://cdn.datatables.net/1.13.6/css/jquery.dataTables.min.css">
     <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.x.x/dist/cdn.min.js"></script>
- 
+
     <style> body { font-family: 'Times New Roman', Times, serif; } </style>
     @stack('styles')
 </head>
 <body class="bg-stone-50 antialiased min-h-screen flex flex-col" x-data="{ sidebarOpen: true, profileDropdown: false, filterDropdown: false, groupDropdown: false, favDropdown: false }">
- 
+
     <div class="flex flex-1 min-h-screen">
         
         <!-- SIDEBAR BÊN TRÁI: TỰ ĐỘNG THAY ĐỔI THEO ROLE -->
@@ -55,29 +55,29 @@
                     <i class="fa-solid fa-bars text-lg"></i>
                 </button>
             </div>
- 
+
             <nav class="flex-1 py-4 px-3 space-y-1 text-base font-medium overflow-y-auto">
                 
                 @php
                     $role = Auth::user()->role ?? 'customer';
                 @endphp
- 
+
                 <!-- 1. MENU DÀNH CHO KHÁCH HÀNG / VÃNG LAI HOẶC TRANG CHUNG -->
                 @if($role == 'customer')
                     @php
                         $currentCategory = request('category');
                         $isHome = !request()->has('category') || request('category') == '';
                     @endphp
- 
+
                     <a href="{{ route('home') }}" class="flex items-center px-3 py-2.5 rounded-lg {{ $isHome ? 'bg-mint-700 text-white shadow-xs' : 'text-stone-800 hover:bg-[#d8e8d2]' }} transition">
                         <i class="fa-solid fa-house w-6 text-center {{ $isHome ? 'text-white' : 'text-mint-700' }}"></i>
                         <span x-show="sidebarOpen" class="ml-3">Trang chủ</span>
                     </a>
- 
+
                     @php
                         $categories = DB::table('products')->select('category')->distinct()->pluck('category');
                     @endphp
- 
+
                     @foreach($categories as $cat)
                     @php
                         $isActive = ($currentCategory == $cat);
@@ -94,7 +94,7 @@
                     </a>
                     @endforeach
                 @endif
- 
+
                 <!-- 2 + 3. MENU STAFF / MANAGER (cùng khung, khác nhóm chức năng) -->
                 @if($role !== 'customer')
                     @php
@@ -109,37 +109,37 @@
                         };
                         $navHeading = fn (string $t) => '<div x-show="sidebarOpen" class="px-3 pt-4 pb-1 text-xs font-bold text-mint-900 uppercase tracking-wider">' . e($t) . '</div>';
                     @endphp
- 
+
                     @if($role === 'staff')
                         {!! $navLink('admin.dashboard', 'fa-chart-pie', 'Dashboard') !!}
                         {!! $navHeading('Bán hàng') !!}
                         {!! $navLink('admin.pos', 'fa-cash-register', 'Bán hàng POS') !!}
                         {!! $navLink('admin.orders.index', 'fa-file-invoice-dollar', 'Quản lý Đơn hàng') !!}
                         {!! $navHeading('Kho & Sản xuất') !!}
-                        {!! $navLink('admin.inventory.index', 'fa-boxes-stacked', 'Sản phẩm và Tồn kho') !!}
-                        {!! $navLink('admin.stocktake.index', 'fa-clipboard-check', 'Kiểm kê kho') !!}
-                        {!! $navLink('admin.inventory.waste.index', 'fa-triangle-exclamation', 'Tiêu hủy hàng hỏng') !!}
+                        {!! $navLink('admin.products.stock', 'fa-boxes-stacked', 'Sản phẩm & Tồn kho') !!}
+                        {!! $navLink('admin.ingredients.index', 'fa-cubes', 'Quản lý Nguyên liệu') !!}
+                        {!! $navLink('admin.stocktake.index', 'fa-clipboard-check', 'Kiểm kê kho (Stocktake)') !!}
+                        {!! $navLink('admin.waste.index', 'fa-triangle-exclamation', 'Tiêu hủy hàng hỏng') !!}
                         {!! $navLink('admin.production.index', 'fa-industry', 'Kế hoạch sản xuất & Mẻ nướng') !!}
                         {!! $navHeading('Ca làm việc') !!}
                         {!! $navLink('admin.shift-report', 'fa-clipboard-user', 'Báo cáo ca làm việc') !!}
                     @else
                         {!! $navLink('admin.dashboard', 'fa-chart-pie', 'Dashboard') !!}
                         {!! $navHeading('Dự báo & Sản xuất') !!}
-                        {!! $navLink('admin.forecast.index', 'fa-chart-line', 'Dự báo nhu cầu') !!}
+                        {!! $navLink('admin.forecast.index', 'fa-chart-line', 'Dự báo nhu cầu (ML)') !!}
                         {!! $navLink('admin.production.index', 'fa-industry', 'Kế hoạch & Duyệt sản xuất') !!}
                         {!! $navLink('admin.bom.index', 'fa-book-open', 'Công thức & Định lượng BOM') !!}
                         {!! $navHeading('Kho & Mua hàng') !!}
-                        {!! $navLink('admin.inventory.index', 'fa-boxes-stacked', 'Kho & Xử lý thiếu hụt NL') !!}
+                        {!! $navLink('admin.ingredients.index', 'fa-boxes-stacked', 'Kho & Xử lý thiếu hụt NL') !!}
                         {!! $navLink('admin.purchase.index', 'fa-cart-flatbed', 'Phiếu mua & Đơn mua NCC') !!}
                         {!! $navHeading('Kinh doanh') !!}
                         {!! $navLink('admin.reports.revenue', 'fa-file-waveform', 'Báo cáo & Thống kê doanh thu') !!}
-                        {!! $navLink('admin.discounts.index', 'fa-tags', 'Chính sách chiết khấu cận date') !!}
                         {!! $navLink('admin.shift-report', 'fa-clipboard-user', 'Báo cáo ca làm việc') !!}
                         {!! $navHeading('Hệ thống') !!}
                         {!! $navLink('admin.staff.index', 'fa-users-gear', 'Quản lý tài khoản nhân viên') !!}
                     @endif
                 @endif
- 
+
             </nav>
             @auth
                 @if($role !== 'customer')
@@ -155,7 +155,7 @@
                 @endif
             @endauth
         </aside>
- 
+
         <!-- KHUNG CHÍNH BÊN PHẢI -->
         <div class="flex-1 flex flex-col min-w-0">
             
@@ -164,7 +164,7 @@
                     <img src="{{ asset('images/logo.png') }}" alt="Logo" class="w-16 h-16 object-contain rounded-full bg-white p-1 shadow">
                     <span class="font-extrabold text-mint-800 text-xl tracking-tight">The Daily Crust</span>
                 </div>
- 
+
                 <div class="flex items-center space-x-5 ml-auto">
                     @guest
                         <div class="flex items-center space-x-3">
@@ -177,7 +177,7 @@
                             <i class="fa-regular fa-bell text-xl"></i>
                             <span class="absolute -top-1 -right-1 bg-red-500 text-white text-[10px] w-4 h-4 rounded-full flex items-center justify-center font-bold">2</span>
                         </button>
- 
+
                         <div class="relative" @click.outside="profileDropdown = false">
                             <button @click="profileDropdown = !profileDropdown" class="flex items-center space-x-3 focus:outline-none">
                                 <div class="w-10 h-10 rounded-full bg-mint-100 border border-mint-300 flex items-center justify-center text-mint-800 font-bold uppercase">
@@ -189,10 +189,10 @@
                                 </div>
                                 <i class="fa-solid fa-chevron-down text-xs text-stone-400"></i>
                             </button>
- 
+
                             <div x-show="profileDropdown" x-transition class="absolute right-0 mt-2 w-52 bg-white border border-stone-200 rounded-lg shadow-lg py-1 z-50">
                                 <a href="#" class="block px-4 py-2 text-sm text-stone-700 hover:bg-stone-100"><i class="fa-solid fa-user mr-2"></i> Tài khoản</a>
-                                <a href="#" class="block px-4 py-2 text-sm text-stone-700 hover:bg-stone-100"><i class="fa-solid fa-box-archive mr-2"></i> Đơn hàng của tôi</a>
+                                <a href="{{ \Illuminate\Support\Facades\Route::has('orders.mine') ? route('orders.mine') : '#' }}" class="block px-4 py-2 text-sm text-stone-700 hover:bg-stone-100"><i class="fa-solid fa-box-archive mr-2"></i> Đơn hàng của tôi</a>
                                 <div class="border-t border-stone-100 my-1"></div>
                                 <form action="{{ route('logout') }}" method="POST">
                                     @csrf
@@ -205,7 +205,7 @@
                     @endguest
                 </div>
             </header>
- 
+
             <!-- NỘI DUNG CHÍNH (Chỉ hiển thị công cụ mua sắm khi là khách hàng) -->
             <main class="flex-1 p-6 bg-stone-50">
                 @if($role == 'customer')
@@ -217,7 +217,7 @@
                             </div>
                             <button type="submit" class="px-4 py-2 bg-mint-700 text-white rounded-lg text-base font-medium hover:bg-mint-800 shadow-xs transition">Tìm</button>
                         </div>
- 
+
                         <div class="flex flex-wrap items-center space-x-3 w-full lg:w-auto justify-end gap-y-2 relative">
                             <!-- Bộ lọc & Yêu thích giữ nguyên như cũ -->
                             <div class="relative" @click.outside="filterDropdown = false">
@@ -246,7 +246,7 @@
                         <a href="{{ request()->fullUrlWithQuery(['sort' => 'seasonal']) }}" class="block px-4 py-2 hover:bg-stone-100"><i class="fa-solid fa-seedling text-emerald-600 mr-2"></i> Sản phẩm theo mùa & Dự báo</a>
                     </div>
                 </div>
- 
+
                 <!-- 3. Nút Yêu thích (Favorites) -->
                 <div class="relative" @click.outside="favDropdown = false">
                     <button type="button" @click="favDropdown = !favDropdown" class="px-4 py-2 bg-mint-700 text-white rounded-lg text-base font-medium hover:bg-mint-800 shadow-xs flex items-center space-x-2">
@@ -268,32 +268,34 @@
                         </div>
                     </form>
                 @endif
- 
+
                 @yield('content')
             </main>
- 
-            <footer class="bg-gradient-to-r from-mint-900 to-mint-800 text-stone-300 pt-10 pb-6 px-8 text-sm shadow-inner">
-                <div class="max-w-7xl mx-auto grid grid-cols-1 md:grid-cols-2 gap-8 mb-8 items-center">
-                    <div class="flex items-center space-x-4">
-                        <img src="{{ asset('images/logo.png') }}" alt="Logo" class="w-14 h-14 rounded-full bg-white p-1 object-contain shadow">
-                        <div>
-                            <span class="font-bold text-white text-lg tracking-wide block">The Daily Crust</span>
-                            <span class="text-xs text-stone-400">Hệ thống quản lý chuỗi tiệm bánh tươi & Dự báo nhu cầu</span>
+
+            @if (request()->routeIs('home', 'dashboard', 'admin.dashboard'))
+                <footer class="bg-gradient-to-r from-mint-900 to-mint-800 text-stone-300 pt-10 pb-6 px-8 text-sm shadow-inner">
+                    <div class="max-w-7xl mx-auto grid grid-cols-1 md:grid-cols-2 gap-8 mb-8 items-center">
+                        <div class="flex items-center space-x-4">
+                            <img src="{{ asset('images/logo.png') }}" alt="Logo" class="w-14 h-14 rounded-full bg-white p-1 object-contain shadow">
+                            <div>
+                                <span class="font-bold text-white text-lg tracking-wide block">The Daily Crust</span>
+                                <span class="text-xs text-stone-400">Hệ thống quản lý chuỗi tiệm bánh tươi & Dự báo nhu cầu</span>
+                            </div>
+                        </div>
+                        <div class="flex flex-col space-y-2 md:items-end font-medium">
+                            <a href="#" class="hover:text-white transition">Liên hệ</a>
+                            <a href="#" class="hover:text-white transition">Về chúng tôi</a>
+                            <a href="#" class="hover:text-white transition">Chính sách bảo mật</a>
                         </div>
                     </div>
-                    <div class="flex flex-col space-y-2 md:items-end font-medium">
-                        <a href="#" class="hover:text-white transition">Liên hệ (Contact)</a>
-                        <a href="#" class="hover:text-white transition">Về chúng tôi (About Us)</a>
-                        <a href="#" class="hover:text-white transition">Chính sách bảo mật (Privacy)</a>
+                    <div class="max-w-7xl mx-auto border-t border-mint-700/60 pt-4 text-center text-xs text-stone-400">
+                        Copyright © 2026 The Daily Crust. All rights reserved.
                     </div>
-                </div>
-                <div class="max-w-7xl mx-auto border-t border-mint-700/60 pt-4 text-center text-xs text-stone-400">
-                    Copyright © 2026 The Daily Crust. All rights reserved.
-                </div>
-            </footer>
+                </footer>
+            @endif
         </div>
     </div>
- 
+
     <script src="https://cdn.datatables.net/1.13.6/js/jquery.dataTables.min.js"></script>
     @stack('scripts')
 </body>

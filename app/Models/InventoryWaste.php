@@ -2,34 +2,37 @@
 
 namespace App\Models;
 
-use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
-class InventoryWaste extends Model
+/** Phiếu tiêu hủy hàng hỏng (bảng `inventory_waste`). approved_by = NULL nghĩa là chờ quản lý duyệt. */
+class InventoryWaste extends BakeryModel
 {
     protected $table = 'inventory_waste';
 
     protected $primaryKey = 'ticket_id';
 
-    public $timestamps = false;
+    protected function casts(): array
+    {
+        return ['ticket_date' => 'datetime'];
+    }
 
-    protected $fillable = [
-        'product_id', 'lot_id', 'ingredient_id', 'ticket_date',
-        'quantity', 'reason_type', 'user_id', 'item_type',
-        'unit', 'unit_cost', 'total_cost', 'approved_by',
-    ];
-
-    public function product()
+    public function product(): BelongsTo
     {
         return $this->belongsTo(Product::class, 'product_id', 'product_id');
     }
 
-    public function ingredient()
+    public function ingredient(): BelongsTo
     {
         return $this->belongsTo(Ingredient::class, 'ingredient_id', 'ingredient_id');
     }
 
-    public function user()
+    public function user(): BelongsTo
     {
         return $this->belongsTo(User::class, 'user_id', 'user_id');
+    }
+
+    public function itemName(): string
+    {
+        return $this->product?->vi_name ?? $this->ingredient?->ingredient_name ?? '—';
     }
 }

@@ -3,164 +3,122 @@
 namespace App\Http\Controllers\Staff;
 
 use App\Http\Controllers\Controller;
-use App\Models\BillOfMaterial;
-use App\Models\Ingredient;
-use App\Models\IngredientStockTransaction;
-use App\Models\InventoryWaste;
 use App\Models\ProductionBatch;
 use App\Models\ProductionPlan;
-use App\Models\ProductLot;
-use App\Models\ProductStockMovement;
-use App\Models\ProductStockTransaction;
+use App\Services\ProductionService;
+use Carbon\Carbon;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
-use Illuminate\Support\Facades\Auth;
-use Illuminate\Support\Facades\DB;
+use Illuminate\Validation\ValidationException;
 use Illuminate\View\View;
 
 class ProductionController extends Controller
 {
-    // Hiển thị danh sách kế hoạch sản xuất đầu ngày
-    public function index(): View
+    public function __construct(private readonly ProductionService $production) {}
+
+    public function index(Request $request): View
     {
-        $plans = ProductionPlan::with('product')->whereDate('plan_date', today())->get();
+        $date = $this->selectedDate($request);
+        $plans = ProductionPlan::query()
+            ->with('product.boms.ingredient')
+            ->whereDate('plan_date', $date)
+            ->orderBy('plan_id')
+            ->get();
 
-        return view('admin.production.index', compact('plans'));
-    }
-
-    public function acceptPlan(Request $request): RedirectResponse
-    {
-        $validated = $request->validate([
-            'plan_id' => 'required|integer|exists:production_plans,plan_id',
-        ]);
-
-        $plan = ProductionPlan::query()->findOrFail($validated['plan_id']);
-        abort_if($plan->plan_status === 'Completed', 422, 'Kế hoạch này đã hoàn tất.');
-
-        $plan->update([
-            'plan_status' => 'Accepted',
-            'approved_by' => Auth::id(),
-            'approved_at' => now(),
-        ]);
-
-        return redirect()->back()->with('success', 'Đã xác nhận tiếp nhận kế hoạch sản xuất.');
-    }
-
-    // Ghi nhận mẻ nướng thực tế (Thay thế AI Vision bằng nhập thủ công số lượng đạt & hỏng)
-    public function storeBatch(Request $request)
-    {
-        $request->validate([
-            'plan_id' => 'required|exists:production_plans,plan_id',
-            'passed_qty' => 'required|integer|min:0',
-            'failed_qty' => 'required|integer|min:0',
-        ]);
-
-        DB::transaction(function () use ($request) {
-            $plan = ProductionPlan::query()->with('product')->lockForUpdate()->findOrFail($request->plan_id);
-            abort_if($plan->plan_status !== 'Accepted', 422, 'Cần xác nhận tiếp nhận kế hoạch trước khi ghi nhận mẻ nướng.');
-            $totalProduced = $request->passed_qty + $request->failed_qty;
-
-            // 1. Lưu nhật ký sản xuất (ProductionBatch)
-            $batch = ProductionBatch::create([
-                'batch_date' => now(),
-                'plan_id' => $plan->plan_id,
-                'product_id' => $plan->product_id,
-                'produced_qty' => $totalProduced,
-                'passed_qty' => $request->passed_qty,
-                'failed_qty' => $request->failed_qty,
-                'ai_image_url' => null, // Đã lược bỏ trạm AI Vision
-                'user_id' => Auth::id(),
-                'start_time' => now()->subHours(1)->format('H:i:s'),
-                'end_time' => now()->format('H:i:s'),
-                'status' => 'Completed',
-            ]);
-
-            // 2. Trừ kho nguyên liệu thô tự động theo định mức BOM
-            $boms = BillOfMaterial::where('product_id', $plan->product_id)->get();
-            foreach ($boms as $bom) {
-                $totalRequiredQty = $bom->quantity_required * $totalProduced;
-
-                $ingredient = Ingredient::query()->lockForUpdate()->findOrFail($bom->ingredient_id);
-                abort_if(
-                    $ingredient->stock_quantity < $totalRequiredQty,
-                    422,
-                    "Không đủ nguyên liệu {$ingredient->ingredient_name} để ghi nhận mẻ nướng."
-                );
-                $ingredient->decrement('stock_quantity', $totalRequiredQty);
-
-                // Ghi nhận giao dịch kho nguyên liệu
-                IngredientStockTransaction::create([
-                    'ingredient_id' => $ingredient->ingredient_id,
-                    'transaction_type' => 'Export',
-                    'quantity' => $totalRequiredQty,
-                    'unit' => $bom->unit,
-                    'reference_type' => 'Production',
-                    'reference_id' => $batch->batch_id,
-                    'transaction_date' => now(),
-                    'user_id' => Auth::id(),
-                ]);
-            }
-
-            // 3. Cập nhật kho thành phẩm & Tạo Lô sản phẩm (ProductLot) nếu có bánh đạt chuẩn
-            if ($request->passed_qty > 0) {
-                $product = $plan->product;
-                $expiryDays = (int) ($product->expiry_duration_day ?? 2);
-
-                $lot = ProductLot::create([
-                    'product_id' => $product->product_id,
-                    'batch_id' => $batch->batch_id,
-                    'production_date' => now(),
-                    'expiry_date' => now()->addDays($expiryDays),
-                    'initial_qty' => $request->passed_qty,
-                    'remaining_qty' => $request->passed_qty,
-                    'status' => 'Active',
-                ]);
-
-                // Ghi nhận giao dịch nhập kho thành phẩm
-                ProductStockTransaction::create([
-                    'product_id' => $product->product_id,
-                    'lot_id' => $lot->lot_id,
-                    'transaction_type' => 'Import',
-                    'quantity' => $request->passed_qty,
-                    'reference_type' => 'Production',
-                    'reference_id' => $batch->batch_id,
-                    'transaction_date' => now(),
-                ]);
-
-                ProductStockMovement::create([
-                    'product_id' => $product->product_id,
-                    'lot_id' => $lot->lot_id,
-                    'movement_type' => 'Production_In',
-                    'quantity' => $request->passed_qty,
-                    'unit_cost' => $product->price * 0.5, // Giả định giá vốn
-                    'total_cost' => ($product->price * 0.5) * $request->passed_qty,
-                    'reference_type' => 'Batch',
-                    'reference_id' => $batch->batch_id,
-                    'movement_date' => now(),
-                    'user_id' => Auth::id(),
-                    'note' => 'Nhập kho thành phẩm từ mẻ nướng bếp',
-                ]);
-            }
-
-            // 4. Nếu có bánh hỏng, ghi nhận vào bảng inventory_waste
-            if ($request->failed_qty > 0) {
-                $product = $plan->product;
-                InventoryWaste::create([
-                    'product_id' => $product->product_id,
-                    'ticket_date' => now(),
-                    'quantity' => $request->failed_qty,
-                    'reason_type' => 'Lỗi nướng thủ công tại bếp',
-                    'user_id' => Auth::id(),
-                    'item_type' => 'Product',
-                    'unit' => 'cái',
-                    'unit_cost' => $product->price,
-                    'total_cost' => $product->price * $request->failed_qty,
-                ]);
-            }
-
-            $plan->update(['plan_status' => 'Completed']);
+        $plans->each(function (ProductionPlan $plan): void {
+            $plan->passed_total = (int) $plan->batches()->sum('passed_qty');
+            $plan->failed_total = (int) $plan->batches()->sum('failed_qty');
+            $plan->remaining = $this->production->remainingQty($plan);
+            $plan->shortages = $this->production
+                ->requirements($plan, $plan->remaining)
+                ->filter(fn (array $requirement): bool => $requirement['short'] > 0)
+                ->values();
         });
 
-        return redirect()->back()->with('success', 'Đã ghi nhận mẻ nướng, trừ kho nguyên liệu và cập nhật thành phẩm thành công!');
+        $recentDates = ProductionPlan::query()
+            ->selectRaw('DATE(plan_date) as plan_date')
+            ->distinct()
+            ->orderByDesc('plan_date')
+            ->limit(30)
+            ->pluck('plan_date');
+
+        $batches = ProductionBatch::query()
+            ->with(['product', 'user'])
+            ->whereDate('batch_date', $date)
+            ->latest('batch_date')
+            ->limit(20)
+            ->get();
+
+        return view('staff.production.index', [
+            'date' => $date,
+            'plans' => $plans,
+            'recentDates' => $recentDates,
+            'batches' => $batches,
+            'isStaff' => $request->user()->role === 'staff',
+            'canAcknowledge' => $request->user()->role === 'staff',
+            'canRecord' => $request->user()->role === 'staff',
+        ]);
+    }
+
+    public function acknowledge(Request $request, ProductionPlan $plan): RedirectResponse
+    {
+        try {
+            $this->production->acknowledge($plan, $request->user());
+        } catch (ValidationException $exception) {
+            return back()->withErrors($exception->errors());
+        }
+
+        return redirect()
+            ->route('admin.production.index', ['date' => $plan->plan_date->toDateString()])
+            ->with('success', 'Đã xác nhận đã nhận kế hoạch sản xuất.');
+    }
+
+    public function create(ProductionPlan $plan): View
+    {
+        $plan->load('product');
+
+        return view('staff.production.record', [
+            'plan' => $plan,
+            'remaining' => $this->production->remainingQty($plan),
+            'bom' => $this->production->requirements($plan, 1),
+        ]);
+    }
+
+    public function store(Request $request, ProductionPlan $plan): RedirectResponse
+    {
+        $validated = $request->validate([
+            'passed_qty' => ['required', 'integer', 'min:0'],
+            'failed_qty' => ['required', 'integer', 'min:0'],
+            'failure_note' => ['nullable', 'string', 'max:200'],
+            'start_time' => ['nullable', 'date_format:H:i'],
+        ]);
+
+        try {
+            $this->production->recordBatch(
+                $plan,
+                $validated['passed_qty'],
+                $validated['failed_qty'],
+                $validated['failure_note'] ?? null,
+                $request->user(),
+                $validated['start_time'] ?? null,
+            );
+        } catch (ValidationException $exception) {
+            return back()->withErrors($exception->errors())->withInput();
+        }
+
+        return redirect()
+            ->route('admin.production.index', ['date' => $plan->plan_date->toDateString()])
+            ->with('success', 'Đã ghi nhận mẻ bánh và cập nhật tồn kho thành công.');
+    }
+
+    private function selectedDate(Request $request): Carbon
+    {
+        $date = $request->input('date');
+
+        if (is_string($date) && preg_match('/^\d{4}-\d{2}-\d{2}$/', $date) === 1) {
+            return Carbon::createFromFormat('Y-m-d', $date)->startOfDay();
+        }
+
+        return today();
     }
 }
