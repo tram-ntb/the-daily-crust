@@ -120,21 +120,26 @@
                         {!! $navLink('admin.ingredients.index', 'fa-cubes', 'Quản lý Nguyên liệu') !!}
                         {!! $navLink('admin.stocktake.index', 'fa-clipboard-check', 'Kiểm kê kho (Stocktake)') !!}
                         {!! $navLink('admin.waste.index', 'fa-triangle-exclamation', 'Tiêu hủy hàng hỏng') !!}
-                        {!! $navLink('admin.production.index', 'fa-industry', 'Kế hoạch sản xuất & Mẻ nướng') !!}
-                        {!! $navHeading('Ca làm việc') !!}
-                        {!! $navLink('admin.shift-report', 'fa-clipboard-user', 'Báo cáo ca làm việc') !!}
+                        {!! $navLink('admin.production.index', 'fa-industry', 'Sản xuất hôm nay') !!}
+                        {!! $navLink('admin.batches.index', 'fa-fire-burner', 'Theo dõi mẻ nướng') !!}
+                        {!! $navLink('admin.bom.index', 'fa-book-open', 'Công thức & Định lượng BOM') !!}
+                        {!! $navLink('admin.expiry.index', 'fa-hourglass-half', 'Hàng cận date & Phiếu hủy') !!}
                     @else
                         {!! $navLink('admin.dashboard', 'fa-chart-pie', 'Dashboard') !!}
                         {!! $navHeading('Dự báo & Sản xuất') !!}
                         {!! $navLink('admin.forecast.index', 'fa-chart-line', 'Dự báo nhu cầu (ML)') !!}
-                        {!! $navLink('admin.production.index', 'fa-industry', 'Kế hoạch & Duyệt sản xuất') !!}
+                        {!! $navLink('admin.plans.index', 'fa-calendar-check', 'Lập kế hoạch sản xuất') !!}
+                        {!! $navLink('admin.production.index', 'fa-industry', 'Tiến độ sản xuất') !!}
+                        {!! $navLink('admin.batches.index', 'fa-fire-burner', 'Theo dõi mẻ nướng') !!}
                         {!! $navLink('admin.bom.index', 'fa-book-open', 'Công thức & Định lượng BOM') !!}
                         {!! $navHeading('Kho & Mua hàng') !!}
                         {!! $navLink('admin.ingredients.index', 'fa-boxes-stacked', 'Kho & Xử lý thiếu hụt NL') !!}
+                        {!! $navLink('admin.stocktake.index', 'fa-clipboard-check', 'Kiểm kê & Duyệt giải trình') !!}
+                        {!! $navLink('admin.waste.index', 'fa-triangle-exclamation', 'Duyệt phiếu hủy') !!}
+                        {!! $navLink('admin.expiry.index', 'fa-hourglass-half', 'Hàng cận date') !!}
                         {!! $navLink('admin.purchase.index', 'fa-cart-flatbed', 'Phiếu mua & Đơn mua NCC') !!}
                         {!! $navHeading('Kinh doanh') !!}
                         {!! $navLink('admin.reports.revenue', 'fa-file-waveform', 'Báo cáo & Thống kê doanh thu') !!}
-                        {!! $navLink('admin.shift-report', 'fa-clipboard-user', 'Báo cáo ca làm việc') !!}
                         {!! $navHeading('Hệ thống') !!}
                         {!! $navLink('admin.staff.index', 'fa-users-gear', 'Quản lý tài khoản nhân viên') !!}
                     @endif
@@ -222,13 +227,13 @@
                             <!-- Bộ lọc & Yêu thích giữ nguyên như cũ -->
                             <div class="relative" @click.outside="filterDropdown = false">
                                 <button type="button" @click="filterDropdown = !filterDropdown" class="px-4 py-2 bg-white border border-stone-300 rounded-lg text-base font-medium text-stone-700 hover:bg-stone-100 shadow-xs flex items-center space-x-2">
-                                    <i class="fa-solid fa-filter text-stone-500"></i><span>Lọc</span>
+                                    <i class="fa-solid fa-filter text-stone-500"></i><span>Lọc theo giá</span>
                                 </button>
                                 <div x-show="filterDropdown" class="absolute right-0 mt-2 w-72 bg-white border border-stone-200 rounded-xl shadow-xl p-4 z-30 text-sm">
                                     <div class="font-bold text-stone-800 mb-1 flex items-center justify-between"><span>Khoảng giá</span><span class="text-[11px] text-stone-400 font-normal">(Đơn vị: nghìn đồng)</span></div>
                                     <div class="flex items-center space-x-2 mb-3">
-                                        <input type="number" name="price_from" value="{{ request('price_from') }}" placeholder="Từ (vd: 17)" class="w-1/2 px-2.5 py-1.5 border border-stone-300 rounded-lg text-sm">
-                                        <input type="number" name="price_to" value="{{ request('price_to') }}" placeholder="Đến (vd: 35)" class="w-1/2 px-2.5 py-1.5 border border-stone-300 rounded-lg text-sm">
+                                        <input type="number" name="price_from" value="{{ request('price_from') }}" placeholder="Từ" class="w-1/2 px-2.5 py-1.5 border border-stone-300 rounded-lg text-sm">
+                                        <input type="number" name="price_to" value="{{ request('price_to') }}" placeholder="Đến" class="w-1/2 px-2.5 py-1.5 border border-stone-300 rounded-lg text-sm">
                                     </div>
                                     <button type="submit" class="w-full py-2 bg-mint-700 text-white rounded-lg text-xs font-bold shadow-xs hover:bg-mint-800 transition mb-3">Áp dụng lọc giá</button>
                                 </div>

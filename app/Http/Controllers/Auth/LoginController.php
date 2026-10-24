@@ -14,7 +14,11 @@ class LoginController
     public function create(Request $request): View|RedirectResponse
     {
         if ($request->user()) {
-            return redirect()->route('dashboard');
+            $route = in_array($request->user()->role, ['manager', 'staff'], true)
+                ? 'admin.dashboard'
+                : 'home';
+
+            return redirect()->route($route);
         }
 
         return view('auth.login');

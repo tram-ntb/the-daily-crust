@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 
 /** Sản phẩm / thành phẩm (bảng `products`). Tồn kho thành phẩm nằm ở các lô `product_lots`. */
@@ -19,6 +20,24 @@ class Product extends BakeryModel
     public function orderDetails(): HasMany
     {
         return $this->hasMany(OrderDetail::class, 'product_id', 'product_id');
+    }
+
+    public function plans(): HasMany
+    {
+        return $this->hasMany(ProductionPlan::class, 'product_id', 'product_id');
+    }
+
+    public function forecasts(): HasMany
+    {
+        return $this->hasMany(ProductionForecast::class, 'product_id', 'product_id');
+    }
+
+    /** Đang kinh doanh (status NULL hoặc 'Active'). */
+    public function scopeActive(Builder $query): Builder
+    {
+        return $query->where(function ($q) {
+            $q->whereNull('status')->orWhere('status', 'Active');
+        });
     }
 
     public function boms(): HasMany

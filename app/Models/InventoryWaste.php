@@ -26,6 +26,22 @@ class InventoryWaste extends BakeryModel
         return $this->belongsTo(Ingredient::class, 'ingredient_id', 'ingredient_id');
     }
 
+    public function lot(): BelongsTo
+    {
+        return $this->belongsTo(ProductLot::class, 'lot_id', 'lot_id');
+    }
+
+    public function approver(): BelongsTo
+    {
+        return $this->belongsTo(User::class, 'approved_by', 'user_id');
+    }
+
+    /** Phiếu do lỗi sản xuất (tự sinh khi ghi mẻ): reason_type = "Lỗi sản xuất: <loại lỗi> [– ghi chú]". */
+    public function isProductionFailure(): bool
+    {
+        return str_starts_with((string) $this->reason_type, 'Lỗi sản xuất:');
+    }
+
     public function user(): BelongsTo
     {
         return $this->belongsTo(User::class, 'user_id', 'user_id');

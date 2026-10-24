@@ -9,10 +9,25 @@
             <h1 class="text-2xl font-bold text-mint-900">Phiếu hủy hàng hỏng</h1>
             <p class="mt-1 text-sm text-stone-500">Lập phiếu khi thành phẩm hết hạn/hỏng hoặc nguyên liệu hư; kho tự trừ tương ứng.</p>
         </div>
-        <div class="rounded-lg border border-stone-200 bg-white px-4 py-2 text-sm shadow-sm">Giá trị hủy tháng này: <b class="text-red-700">{{ number_format($monthCost) }}đ</b></div>
+        <div class="flex flex-wrap items-center gap-2">
+            @if (\Illuminate\Support\Facades\Route::has('admin.expiry.index'))
+                <a href="{{ route('admin.expiry.index') }}" class="rounded-lg border border-amber-600 bg-amber-50 px-3 py-2 text-sm font-semibold text-amber-900 hover:bg-amber-100"><i class="fa-solid fa-hourglass-half mr-1"></i>Hàng cận date &amp; tồn đọng</a>
+            @endif
+            <div class="rounded-lg border border-stone-200 bg-white px-4 py-2 text-sm shadow-sm">Giá trị hủy tháng này: <b class="text-red-700">{{ number_format($monthCost) }}đ</b></div>
+        </div>
     </div>
 
     @include('staff.partials.flash')
+
+    @if ($canApprove && $pendingCount > 0)
+        <div class="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900">
+            <span><i class="fa-solid fa-stamp mr-1"></i>Có <b>{{ $pendingCount }}</b> phiếu hủy đang chờ bạn duyệt.</span>
+            <form method="POST" action="{{ route('admin.waste.approve-all') }}" onsubmit="return confirm('Duyệt tất cả phiếu hủy đang chờ?')">
+                @csrf
+                <button class="rounded-lg bg-mint-700 px-4 py-1.5 text-sm font-semibold text-white hover:bg-mint-800">Duyệt tất cả</button>
+            </form>
+        </div>
+    @endif
 
     @if ($canWrite)
     <form method="POST" action="{{ route('admin.waste.store') }}" x-data="{ type: '{{ old('item_type', 'Product') }}' }"
@@ -87,7 +102,12 @@
                             <td class="px-4 py-2 text-stone-600">{{ $t->reason_type }}</td>
                             <td class="px-4 py-2 text-right font-semibold text-red-700">{{ number_format($t->total_cost) }}đ</td>
                             <td class="px-4 py-2 text-stone-600">{{ $t->user->full_name ?? '—' }}</td>
-                            <td class="px-4 py-2"><span class="rounded-full px-2.5 py-0.5 text-xs font-semibold {{ $t->approved_by ? 'bg-emerald-100 text-emerald-800' : 'bg-amber-100 text-amber-800' }}">{{ $t->approved_by ? 'Đã duyệt' : 'Chờ duyệt' }}</span></td>
+                            <td class="px-4 py-2">
+                                <span class="rounded-full px-2.5 py-0.5 text-xs font-semibold {{ $t->approved_by ? 'bg-emerald-100 text-emerald-800' : 'bg-amber-100 text-amber-800' }}">{{ $t->approved_by ? 'Đã duyệt' : 'Chờ duyệt' }}</span>
+                                @if ($canApprove && ! $t->approved_by)
+                                    <form method="POST" action="{{ route('admin.waste.approve', $t) }}" class="mt-1">@csrf<button class="text-xs font-semibold text-mint-700 hover:underline">Duyệt</button></form>
+                                @endif
+                            </td>
                         </tr>
                     @empty
                         <tr><td colspan="8" class="px-4 py-8 text-center text-stone-400">Chưa có phiếu hủy.</td></tr>

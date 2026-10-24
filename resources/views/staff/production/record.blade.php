@@ -13,22 +13,22 @@
     @include('staff.partials.flash')
 
     <form method="POST" action="{{ route('admin.production.batches.store', $plan) }}"
-          x-data="batchForm({ remaining: {{ $remaining }}, bom: @js($bom), passed: {{ (int) old('passed_qty', 0) }}, failed: {{ (int) old('failed_qty', 0) }} })"
+          x-data="batchForm(@js([
+              'remaining' => $remaining,
+              'bom' => $bom,
+              'passed' => (int) old('passed_qty', 0),
+              'fails' => old('failures') ? array_values(old('failures')) : [],
+              'types' => $failureTypes,
+          ]))"
           class="space-y-5 rounded-xl border border-stone-200 bg-white p-6 shadow-sm">
         @csrf
 
-        <div class="grid grid-cols-1 gap-4 sm:grid-cols-3">
+        <div class="grid grid-cols-1 gap-4 sm:grid-cols-2">
             <label class="block">
-                <span class="text-sm font-semibold text-stone-700">Số lượng ĐẠT</span>
+                <span class="text-sm font-semibold text-stone-700">Số lượng ĐẠT chuẩn</span>
                 <input type="number" name="passed_qty" min="0" x-model.number="passed" required
                        class="mt-1 w-full rounded-lg border border-stone-300 px-3 py-2 text-lg font-bold text-emerald-700 focus:border-mint-700 focus:outline-none">
-                <span class="text-xs text-stone-400">Nhập kho thành phẩm</span>
-            </label>
-            <label class="block">
-                <span class="text-sm font-semibold text-stone-700">Số lượng LỖI</span>
-                <input type="number" name="failed_qty" min="0" x-model.number="failed" required
-                       class="mt-1 w-full rounded-lg border border-stone-300 px-3 py-2 text-lg font-bold text-red-700 focus:border-mint-700 focus:outline-none">
-                <span class="text-xs text-stone-400">Tự lập phiếu hủy</span>
+                <span class="text-xs text-stone-400">Nhập kho thành phẩm (tạo lô mới)</span>
             </label>
             <label class="block">
                 <span class="text-sm font-semibold text-stone-700">Giờ bắt đầu (tùy chọn)</span>
@@ -38,12 +38,37 @@
             </label>
         </div>
 
-        <div x-show="failed > 0" x-cloak>
-            <label class="block">
-                <span class="text-sm font-semibold text-stone-700">Ghi chú nguyên nhân lỗi <span class="text-red-600">*</span></span>
-                <input type="text" name="failure_note" maxlength="200" value="{{ old('failure_note') }}" placeholder="VD: cháy đáy, bánh xẹp, nướng chưa chín..."
-                       class="mt-1 w-full rounded-lg border border-stone-300 px-3 py-2 focus:border-mint-700 focus:outline-none">
-            </label>
+        {{-- Bánh hỏng: phân loại theo loại lỗi --}}
+        <div class="rounded-lg border border-red-200 bg-red-50/40 p-4">
+            <div class="flex items-center justify-between">
+                <h2 class="text-sm font-semibold text-red-800"><i class="fa-solid fa-bug mr-1"></i>Bánh hỏng / lỗi (phân loại)</h2>
+                <span class="text-sm">Tổng lỗi: <b class="text-red-700" x-text="failed"></b></span>
+            </div>
+            <p class="mb-2 text-xs text-stone-500">Mỗi loại lỗi sẽ tự lập một phiếu hủy riêng để Quản lý thống kê nguyên nhân. Không có bánh hỏng thì bỏ trống.</p>
+
+            <div class="space-y-2">
+                <template x-for="(f, i) in fails" :key="f.key">
+                    <div class="flex items-center gap-2">
+                        <select :name="`failures[${i}][type]`" x-model="f.type" class="flex-1 rounded-lg border border-stone-300 bg-white px-3 py-2 text-sm focus:border-mint-700 focus:outline-none">
+                            <option value="">-- Chọn loại lỗi --</option>
+                            <template x-for="t in types" :key="t"><option :value="t" x-text="t"></option></template>
+                        </select>
+                        <input type="number" min="1" :name="`failures[${i}][qty]`" x-model.number="f.qty" placeholder="SL"
+                               class="w-24 rounded-lg border border-stone-300 px-3 py-2 text-right font-bold text-red-700 focus:border-mint-700 focus:outline-none">
+                        <button type="button" @click="removeFail(f.key)" class="px-2 text-stone-400 hover:text-red-600" title="Xóa dòng"><i class="fa-solid fa-trash-can"></i></button>
+                    </div>
+                </template>
+            </div>
+            <button type="button" @click="addFail()" class="mt-2 text-sm font-semibold text-mint-700 hover:underline"><i class="fa-solid fa-plus mr-1"></i>Thêm loại lỗi</button>
+
+            <div x-show="failed > 0" x-cloak class="mt-3">
+                <label class="block">
+                    <span class="text-sm font-semibold text-stone-700">Ghi chú nguyên nhân <span x-show="hasOther" class="text-red-600">* (bắt buộc khi chọn "Khác")</span></span>
+                    <input type="text" name="failure_note" maxlength="150" value="{{ old('failure_note') }}" placeholder="VD: lò nóng không đều, bột để quá lâu..."
+                           class="mt-1 w-full rounded-lg border border-stone-300 px-3 py-2 text-sm focus:border-mint-700 focus:outline-none">
+                </label>
+            </div>
+            <p x-show="incompleteFail" x-cloak class="mt-2 text-xs font-semibold text-red-700">Mỗi dòng lỗi cần chọn loại và nhập số lượng lớn hơn 0.</p>
         </div>
 
         <p x-show="passed > remaining" x-cloak class="rounded-lg bg-red-50 px-3 py-2 text-sm text-red-800">
@@ -76,7 +101,7 @@
 
         <div class="flex justify-end gap-2">
             <a href="{{ route('admin.production.index', ['date' => $plan->plan_date->toDateString()]) }}" class="rounded-lg border border-stone-300 px-4 py-2 text-sm font-semibold text-stone-600 hover:bg-stone-50">Hủy</a>
-            <button type="submit" :disabled="(passed + failed) <= 0 || passed > remaining || hasShortage"
+            <button type="submit" :disabled="!canSave"
                     class="rounded-lg bg-mint-700 px-5 py-2 text-sm font-semibold text-white hover:bg-mint-800 disabled:cursor-not-allowed disabled:opacity-50">
                 <i class="fa-solid fa-floppy-disk mr-1"></i>Lưu mẻ bánh
             </button>
@@ -88,16 +113,30 @@
 @push('scripts')
 <script>
     function batchForm(cfg) {
+        let seq = 0;
+        const withKey = f => ({ key: ++seq, type: f.type ?? '', qty: Number(f.qty) || '' });
         return {
-            remaining: cfg.remaining, passed: cfg.passed, failed: cfg.failed,
+            remaining: cfg.remaining, passed: cfg.passed, types: cfg.types,
+            fails: cfg.fails.map(withKey),
+
+            addFail() { this.fails.push(withKey({})); },
+            removeFail(key) { this.fails = this.fails.filter(f => f.key !== key); },
+
+            get failed() { return this.fails.reduce((s, f) => s + (Number(f.qty) > 0 ? Number(f.qty) : 0), 0); },
+            get hasOther() { return this.fails.some(f => f.type === 'Khác' && Number(f.qty) > 0); },
+            get incompleteFail() { return this.fails.some(f => (f.type === '') !== !(Number(f.qty) > 0)); },
+
             get rows() {
-                const produced = (this.passed || 0) + (this.failed || 0);
+                const produced = (this.passed || 0) + this.failed;
                 return cfg.bom.map(b => {
                     const needed = Math.ceil(Math.round(b.per_unit * produced * 10000) / 10000);
                     return { ...b, needed, short: Math.max(0, needed - b.stock) };
                 });
             },
             get hasShortage() { return this.rows.some(r => r.short > 0); },
+            get canSave() {
+                return (this.passed + this.failed) > 0 && this.passed <= this.remaining && !this.hasShortage && !this.incompleteFail;
+            },
         };
     }
 </script>

@@ -13,6 +13,7 @@ use App\Models\ProductStockTransaction;
 use App\Models\User;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Str;
 use Illuminate\Validation\ValidationException;
 
 /**
@@ -20,6 +21,17 @@ use Illuminate\Validation\ValidationException;
  */
 class ProductionService
 {
+    /** Phân loại bánh hỏng khi ghi mẻ (mỗi loại tạo một phiếu hủy riêng để thống kê). */
+    public const FAILURE_TYPES = [
+        'Cháy / khét',
+        'Không nở / xẹp',
+        'Chưa chín / sống',
+        'Biến dạng / nứt vỡ',
+        'Sai vị / sai công thức',
+        'Rơi vỡ khi thao tác',
+        'Khác',
+    ];
+
     /** Số lượng còn được phép ghi nhận "đạt" của kế hoạch (kế hoạch - đã đạt từ các mẻ trước). */
     public function remainingQty(ProductionPlan $plan): int
     {
@@ -69,19 +81,24 @@ class ProductionService
     }
 
     /**
-     * Ghi nhận một mẻ bánh: nhập số đạt / lỗi (thay cho AI Vision), trừ nguyên liệu theo BOM,
-     * nhập kho thành phẩm đạt (tạo lô), ghi phiếu hủy cho phần lỗi và lưu lịch sử mẻ.
+     * Ghi nhận một mẻ bánh: nhập số đạt và danh sách bánh hỏng theo từng loại lỗi (thay cho AI Vision),
+     * trừ nguyên liệu theo BOM, nhập kho thành phẩm đạt (tạo lô), lập phiếu hủy cho từng loại lỗi và lưu lịch sử mẻ.
+     *
+     * @param  array<int, array{type:string, qty:int|string}>  $failures  Bánh hỏng theo loại; tổng qty = số lỗi của mẻ.
      */
     public function recordBatch(
         ProductionPlan $plan,
         int $passed,
-        int $failed,
+        array $failures,
         ?string $failureNote,
         User $user,
         ?string $startTime = null,
         ?string $endTime = null,
     ): ProductionBatch {
-        return DB::transaction(function () use ($plan, $passed, $failed, $failureNote, $user, $startTime, $endTime) {
+        $byType = $this->normalizeFailures($failures);
+        $failed = array_sum($byType);
+
+        return DB::transaction(function () use ($plan, $passed, $failed, $byType, $failureNote, $user, $startTime, $endTime) {
             $plan = ProductionPlan::with('product.boms')->lockForUpdate()->findOrFail($plan->plan_id);
 
             if (! $plan->isApproved() || ! $plan->isAcknowledged()) {
@@ -92,8 +109,8 @@ class ProductionService
             if ($produced <= 0) {
                 throw ValidationException::withMessages(['passed_qty' => 'Cần nhập ít nhất 1 sản phẩm (đạt hoặc lỗi).']);
             }
-            if ($failed > 0 && blank($failureNote)) {
-                throw ValidationException::withMessages(['failure_note' => 'Vui lòng ghi chú nguyên nhân lỗi khi có sản phẩm lỗi.']);
+            if (isset($byType['Khác']) && blank($failureNote)) {
+                throw ValidationException::withMessages(['failure_note' => 'Vui lòng ghi chú cụ thể khi chọn loại lỗi "Khác".']);
             }
 
             $remaining = $this->remainingQty($plan);
@@ -142,7 +159,7 @@ class ProductionService
                 'start_time' => $startTime,
                 'end_time' => $endTime ?: $now->format('H:i:s'),
                 'status' => 'Completed',
-                'failure_note' => $failed > 0 ? $failureNote : null,
+                'failure_note' => $failed > 0 ? $this->describeFailures($byType, $failureNote) : null,
             ]);
 
             // 2) Trừ nguyên liệu theo BOM + sổ giao dịch xuất kho
@@ -201,25 +218,68 @@ class ProductionService
                 ]);
             }
 
-            // 4) Phần lỗi: phiếu hủy tự động (chờ Quản lý duyệt => approved_by = null)
-            if ($failed > 0) {
+            // 4) Phần lỗi: mỗi loại lỗi một phiếu hủy tự động (chờ Quản lý duyệt => approved_by = null)
+            foreach ($byType as $type => $qty) {
+                $reason = 'Lỗi sản xuất: '.$type.(filled($failureNote) && $type === 'Khác' ? ' – '.$failureNote : '');
+
                 InventoryWaste::create([
                     'product_id' => $plan->product_id,
                     'lot_id' => null,
                     'ingredient_id' => null,
                     'ticket_date' => $now,
-                    'quantity' => $failed,
-                    'reason_type' => 'Lỗi sản xuất: '.$failureNote,
+                    'quantity' => $qty,
+                    'reason_type' => Str::limit($reason, 250, ''),
                     'user_id' => $user->user_id,
                     'item_type' => 'Product',
                     'unit' => 'cái',
                     'unit_cost' => $unitCost,
-                    'total_cost' => $unitCost * $failed,
+                    'total_cost' => $unitCost * $qty,
                     'approved_by' => null,
                 ]);
             }
 
             return $batch;
         });
+    }
+
+    /**
+     * Gộp các dòng lỗi cùng loại, kiểm tra loại hợp lệ và số lượng dương.
+     *
+     * @return array<string,int> [loại lỗi => số lượng]
+     */
+    private function normalizeFailures(array $failures): array
+    {
+        $byType = [];
+        foreach ($failures as $row) {
+            $type = trim((string) ($row['type'] ?? ''));
+            $qty = (int) ($row['qty'] ?? 0);
+            if ($type === '' && $qty <= 0) {
+                continue;   // dòng trống
+            }
+            if (! in_array($type, self::FAILURE_TYPES, true)) {
+                throw ValidationException::withMessages(['failures' => 'Loại lỗi không hợp lệ.']);
+            }
+            if ($qty <= 0) {
+                throw ValidationException::withMessages(['failures' => "Loại lỗi \"{$type}\" cần số lượng lớn hơn 0."]);
+            }
+            $byType[$type] = ($byType[$type] ?? 0) + $qty;
+        }
+
+        return $byType;
+    }
+
+    /** Chuỗi mô tả lỗi lưu vào production_batches.failure_note, ví dụ "Cháy / khét ×2; Không nở / xẹp ×1 — ghi chú". */
+    private function describeFailures(array $byType, ?string $note): string
+    {
+        $parts = [];
+        foreach ($byType as $type => $qty) {
+            $parts[] = "{$type} ×{$qty}";
+        }
+        $text = implode('; ', $parts);
+        if (filled($note)) {
+            $text .= ' — '.$note;
+        }
+
+        return Str::limit($text, 250, '');
     }
 }

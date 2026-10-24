@@ -40,4 +40,26 @@ class ProductLot extends BakeryModel
             $q->whereNull('expiry_date')->orWhere('expiry_date', '>', now());
         });
     }
+
+    /** Hạn dùng đã qua. */
+    public function isExpired(): bool
+    {
+        return $this->expiry_date !== null && $this->expiry_date->lte(now());
+    }
+
+    /** Số giờ còn lại đến hạn dùng (âm = đã quá hạn); null nếu không có hạn. */
+    public function hoursLeft(): ?float
+    {
+        return $this->expiry_date === null ? null : now()->diffInMinutes($this->expiry_date, false) / 60;
+    }
+
+    /** Tổng thời hạn sử dụng của lô (giờ) = hạn dùng - ngày sản xuất. */
+    public function shelfLifeHours(): ?float
+    {
+        if ($this->expiry_date === null || $this->production_date === null) {
+            return null;
+        }
+
+        return max(1, $this->production_date->diffInMinutes($this->expiry_date, false) / 60);
+    }
 }

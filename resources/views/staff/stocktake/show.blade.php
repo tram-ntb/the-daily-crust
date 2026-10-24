@@ -19,6 +19,32 @@
 
     @include('staff.partials.flash')
 
+    {{-- Biên bản giải trình hao hụt + duyệt của Quản lý --}}
+    @if ($session->status !== 'In_Progress' && $overCount > 0)
+        <div class="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-amber-200 bg-amber-50 px-5 py-4">
+            <div class="text-sm text-amber-900">
+                <p class="font-semibold"><i class="fa-solid fa-file-signature mr-1"></i>{{ $overCount }} mặt hàng vượt dung sai cần biên bản giải trình hao hụt.</p>
+                @if ($session->status === 'Pending_Approval')
+                    <p class="mt-0.5 text-xs">{{ $isManager ? 'Xem biên bản rồi duyệt (điều chỉnh tồn kho) hoặc yêu cầu đếm lại.' : 'Hãy điền biên bản để Quản lý xem xét và phê duyệt.' }}</p>
+                @endif
+            </div>
+            <div class="flex flex-wrap items-center gap-2">
+                <a href="{{ route('admin.stocktake.report', $session) }}" class="rounded-lg border border-amber-700 px-4 py-2 text-sm font-semibold text-amber-900 hover:bg-amber-100"><i class="fa-solid fa-file-lines mr-1"></i>Biên bản giải trình</a>
+                @if ($isManager && $session->status === 'Pending_Approval')
+                    <form method="POST" action="{{ route('admin.stocktake.approve', $session) }}" onsubmit="return confirm('Duyệt và điều chỉnh tồn kho theo số thực tế?')">
+                        @csrf
+                        <button class="rounded-lg bg-mint-700 px-4 py-2 text-sm font-semibold text-white hover:bg-mint-800"><i class="fa-solid fa-check mr-1"></i>Duyệt &amp; điều chỉnh kho</button>
+                    </form>
+                    <form method="POST" action="{{ route('admin.stocktake.reject', $session) }}" class="flex items-center gap-1.5">
+                        @csrf
+                        <input type="text" name="reason" maxlength="150" required placeholder="Lý do yêu cầu đếm lại" class="w-52 rounded-lg border border-stone-300 px-2.5 py-2 text-xs focus:border-mint-700 focus:outline-none">
+                        <button class="rounded-lg border border-red-600 px-3 py-2 text-sm font-semibold text-red-700 hover:bg-red-50">Đếm lại</button>
+                    </form>
+                @endif
+            </div>
+        </div>
+    @endif
+
     <form method="POST" action="{{ route('admin.stocktake.update', $session) }}" class="space-y-4">
         @csrf
         @method('PUT')

@@ -14,6 +14,7 @@ use App\Models\StocktakeDetail;
 use App\Models\StocktakeSession;
 use App\Models\User;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Str;
 use Illuminate\Validation\ValidationException;
 
 /** Nghiệp vụ kho: phiếu hủy hàng hỏng và kiểm kê. Chỉ dùng Eloquent, mỗi nghiệp vụ là một transaction. */
@@ -25,6 +26,16 @@ class InventoryService
         'Rơi vỡ, đổ làm hỏng',
         'Lỗi sản xuất',
         'Khác',
+    ];
+
+    /** Nguyên nhân hao hụt để chọn trong mẫu biên bản giải trình. */
+    public const SHORTAGE_CAUSES = [
+        'Sai số cân đo / đong đếm',
+        'Hao hụt khi chế biến',
+        'Đổ vỡ, rơi vãi',
+        'Hàng hết hạn chưa lập phiếu hủy',
+        'Nhầm lẫn khi xuất / nhập kho',
+        'Chưa rõ nguyên nhân',
     ];
 
     /** Dung sai mặc định (%) khi nguyên liệu không có tolerance_rate hoặc là thành phẩm. */
@@ -229,6 +240,117 @@ class InventoryService
 
             return $session;
         });
+    }
+
+    // ----------------------------------------------------------------- BIÊN BẢN GIẢI TRÌNH & DUYỆT KIỂM KÊ
+    /**
+     * Lưu mẫu biên bản giải trình hao hụt cho các dòng vượt dung sai của phiên đang chờ duyệt.
+     * Mỗi dòng gồm nguyên nhân (chọn từ danh sách), biện pháp khắc phục và ghi chú; được ghép thành một câu
+     * "[nguyên nhân] Khắc phục: ... Ghi chú: ..." lưu vào shortage_explanations.explanation_note (và stocktake_details.explanation).
+     *
+     * @param  array<int, array{cause:?string,measure:?string,note:?string}>  $rows  [stocktake_detail_id => ...]
+     */
+    public function saveShortageReport(StocktakeSession $session, array $rows, User $user): void
+    {
+        DB::transaction(function () use ($session, $rows, $user) {
+            $session = StocktakeSession::lockForUpdate()->findOrFail($session->stocktake_id);
+            if ($session->status !== StocktakeSession::PENDING_APPROVAL) {
+                throw ValidationException::withMessages(['report' => 'Chỉ lập/sửa biên bản khi phiên đang chờ Quản lý duyệt.']);
+            }
+
+            $details = $session->details()->where('reason_code', 'OVER_TOLERANCE')->get()->keyBy('stocktake_detail_id');
+            $explanations = ShortageExplanation::whereIn('stocktake_detail_id', $details->keys())->get()->keyBy('stocktake_detail_id');
+
+            foreach ($details as $id => $detail) {
+                $row = $rows[$id] ?? null;
+                $cause = trim((string) ($row['cause'] ?? ''));
+                $measure = trim((string) ($row['measure'] ?? ''));
+                $note = trim((string) ($row['note'] ?? ''));
+
+                if (! in_array($cause, self::SHORTAGE_CAUSES, true)) {
+                    throw ValidationException::withMessages(['report' => 'Vui lòng chọn nguyên nhân cho: '.$detail->label()]);
+                }
+                if ($measure === '') {
+                    throw ValidationException::withMessages(['report' => 'Vui lòng nhập biện pháp khắc phục cho: '.$detail->label()]);
+                }
+
+                $text = '['.$cause.'] Khắc phục: '.$measure.($note !== '' ? '. Ghi chú: '.$note : '');
+                $text = Str::limit($text, 250, '');
+
+                $detail->update(['explanation' => $text]);
+
+                $existing = $explanations->get($id);
+                if ($existing) {
+                    $existing->update(['explanation_note' => $text, 'variance_qty' => $detail->variance_qty]);
+                } else {
+                    ShortageExplanation::create([
+                        'stocktake_detail_id' => $id, 'variance_qty' => $detail->variance_qty, 'explanation_note' => $text,
+                        'created_by' => $user->user_id, 'approved_by' => null, 'created_at' => now(),
+                    ]);
+                }
+            }
+
+            $session->update(['updated_at' => now()]);
+        });
+    }
+
+    /** Quản lý duyệt giải trình: điều chỉnh tồn kho theo số thực tế và đóng phiên. */
+    public function approveStocktake(StocktakeSession $session, User $manager): StocktakeSession
+    {
+        return DB::transaction(function () use ($session, $manager) {
+            $session = StocktakeSession::lockForUpdate()->findOrFail($session->stocktake_id);
+            if ($session->status !== StocktakeSession::PENDING_APPROVAL) {
+                throw ValidationException::withMessages(['stocktake' => 'Phiên này không ở trạng thái chờ duyệt.']);
+            }
+
+            $details = $session->details()->with('ingredient')->whereNotNull('actual_qty')->get();
+            $this->applyAdjustments($details, $manager);
+
+            ShortageExplanation::whereIn('stocktake_detail_id', $details->pluck('stocktake_detail_id'))
+                ->update(['approved_by' => $manager->user_id]);
+
+            $session->update([
+                'status' => StocktakeSession::COMPLETED,
+                'approved_by' => $manager->user_id,
+                'updated_at' => now(),
+                'note' => 'Quản lý đã duyệt giải trình và điều chỉnh tồn kho theo số thực tế.',
+            ]);
+
+            return $session;
+        });
+    }
+
+    /** Quản lý từ chối giải trình: mở lại phiên để Staff đếm lại (xóa các giải trình chưa duyệt). */
+    public function rejectStocktake(StocktakeSession $session, string $reason): StocktakeSession
+    {
+        return DB::transaction(function () use ($session, $reason) {
+            $session = StocktakeSession::lockForUpdate()->findOrFail($session->stocktake_id);
+            if ($session->status !== StocktakeSession::PENDING_APPROVAL) {
+                throw ValidationException::withMessages(['stocktake' => 'Phiên này không ở trạng thái chờ duyệt.']);
+            }
+
+            $ids = $session->details()->pluck('stocktake_detail_id');
+            ShortageExplanation::whereIn('stocktake_detail_id', $ids)->whereNull('approved_by')->delete();
+            $session->details()->update(['variance_qty' => null, 'variance_percentage' => null, 'reason_code' => null]);
+
+            $session->update([
+                'status' => StocktakeSession::IN_PROGRESS,
+                'updated_at' => now(),
+                'note' => Str::limit('Quản lý yêu cầu kiểm đếm lại: '.$reason, 250, ''),
+            ]);
+
+            return $session;
+        });
+    }
+
+    /** Giá vốn một đơn vị của dòng kiểm kê (dùng để quy ra giá trị thất thoát trong biên bản). */
+    public function unitCostOf(StocktakeDetail $detail): int
+    {
+        if ($detail->item_type === 'Ingredient') {
+            return (int) ($detail->ingredient->cost_price_vn ?? 0);
+        }
+
+        return $detail->lot?->product ? $detail->lot->product->unitCost() : 0;
     }
 
     /** Điều chỉnh tồn kho theo chênh lệch (không để âm) và ghi sổ giao dịch. */

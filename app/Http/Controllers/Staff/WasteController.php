@@ -26,6 +26,8 @@ class WasteController extends Controller
             'tickets' => InventoryWaste::query()->with(['product', 'ingredient', 'user'])
                 ->orderByDesc('ticket_date')->paginate(15),
             'canWrite' => $canWrite,
+            'canApprove' => $request->user()->role === 'manager',
+            'pendingCount' => InventoryWaste::whereNull('approved_by')->count(),
             'reasons' => InventoryService::WASTE_REASONS,
             'ingredients' => $canWrite ? Ingredient::orderBy('ingredient_name')->get(['ingredient_id', 'ingredient_name', 'unit', 'stock_quantity']) : collect(),
             'lots' => $canWrite ? ProductLot::available()->with('product:product_id,vi_name')->orderBy('expiry_date')->get() : collect(),
@@ -55,5 +57,25 @@ class WasteController extends Controller
         }
 
         return redirect()->route('admin.waste.index')->with('success', "Đã lập phiếu hủy #{$ticket->ticket_id} (chờ Quản lý duyệt).");
+    }
+
+    /** Quản lý duyệt một phiếu hủy. */
+    public function approve(Request $request, InventoryWaste $ticket): RedirectResponse
+    {
+        if ($ticket->approved_by !== null) {
+            return back()->withErrors(['ticket' => "Phiếu #{$ticket->ticket_id} đã được duyệt trước đó."]);
+        }
+
+        $ticket->update(['approved_by' => $request->user()->user_id]);
+
+        return back()->with('success', "Đã duyệt phiếu hủy #{$ticket->ticket_id}.");
+    }
+
+    /** Quản lý duyệt tất cả phiếu đang chờ. */
+    public function approveAll(Request $request): RedirectResponse
+    {
+        $count = InventoryWaste::whereNull('approved_by')->update(['approved_by' => $request->user()->user_id]);
+
+        return back()->with('success', $count > 0 ? "Đã duyệt {$count} phiếu hủy đang chờ." : 'Không có phiếu nào đang chờ duyệt.');
     }
 }
