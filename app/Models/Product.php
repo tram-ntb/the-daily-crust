@@ -31,12 +31,20 @@ class Product extends BakeryModel
         return $this->hasMany(ProductionForecast::class, 'product_id', 'product_id');
     }
 
-    /** Sản phẩm SẢN XUẤT tại bếp (không thuộc nhóm hàng nhập về cấu hình ở config/forecast.php). */
+    /**
+     * Sản phẩm SẢN XUẤT / PHA CHẾ tại quán (đưa vào kế hoạch sản xuất):
+     *  - không thuộc nhóm hàng nhập (config forecast.commercial_categories);
+     *  - nhóm do BOM quyết định (đồ uống): chỉ khi CÓ công thức BOM (nước suối đóng chai không có BOM nên bị loại).
+     */
     public function scopeProducible(\Illuminate\Database\Eloquent\Builder $query): \Illuminate\Database\Eloquent\Builder
     {
         $commercial = (array) config('forecast.commercial_categories', []);
+        $bomDecides = (array) config('forecast.bom_decides_categories', []);
 
-        return $query->where(fn ($q) => $q->whereNull('category')->orWhereNotIn('category', $commercial));
+        return $query->where(fn ($q) => $q->whereNull('category')->orWhere(
+            fn ($w) => $w->whereNotIn('category', $commercial)
+                ->where(fn ($x) => $x->whereNotIn('category', $bomDecides)->orWhereHas('boms'))
+        ));
     }
 
     /** Đang kinh doanh (status NULL hoặc 'Active'). */

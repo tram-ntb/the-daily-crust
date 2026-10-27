@@ -40,7 +40,8 @@ MIN_DAY_RATIO = 0.3   # ngày có ít hơn 30% số đơn của ngày trung vị
 #   * Commercial (nhập từ nhà cung cấp): đồ uống, hàng thương mại, quà tặng. Dự báo NHU CẦU 7 NGÀY TỚI để Manager
 #     quyết định khi nào nhập thêm và nhập bao nhiêu.
 # Nhóm được xác định theo CATEGORY (không dựa vào hạn dùng nên không loại nhầm sản phẩm bếp có hạn dùng dài).
-COMMERCIAL_CATEGORIES = ["Đồ uống", "Hàng thương mại & Quà tặng"]
+COMMERCIAL_CATEGORIES = ["Hàng thương mại & Quà tặng"]   # luôn là hàng nhập từ NCC
+BOM_DECIDES_CATEGORIES = ["Đồ uống"]   # nhóm do CÔNG THỨC (BOM) quyết định: có BOM = pha chế tại quán, không BOM = đóng chai nhập từ NCC
 GROUP_PRODUCTION = "Production"
 GROUP_COMMERCIAL = "Commercial"
 COMMERCIAL_HORIZON_DAYS = 7    # hàng nhập về: dự báo tổng nhu cầu của 7 ngày kể từ ngày dự báo
@@ -148,18 +149,31 @@ def load_bom_product_ids(conn):
         return None
 
 
-def classify_products(products, bom_ids, commercial_categories):
-    """Thêm cột item_group (Production | Commercial | None nếu ngừng bán) và note (cảnh báo dữ liệu)."""
+def classify_products(products, bom_ids, commercial_categories, bom_decides_categories=None):
+    """Thêm cột item_group (Production | Commercial | None nếu ngừng bán) và note (cảnh báo dữ liệu).
+
+    Quy tắc:
+      1. Ngừng bán -> bỏ qua.
+      2. Thuộc commercial_categories (hàng thương mại, quà tặng) -> Commercial (nhập từ NCC).
+      3. Thuộc bom_decides_categories (đồ uống): CÓ công thức BOM = pha chế tại quán -> Production;
+         KHÔNG có BOM = hàng đóng chai nhập nguyên kiện (nước suối...) -> Commercial.
+      4. Còn lại (bánh mì, bánh ngọt, món mặn, bánh quy trẻ em...) -> Production, bất kể hạn dùng.
+    """
+    bom_decides_categories = BOM_DECIDES_CATEGORIES if bom_decides_categories is None else bom_decides_categories
     group, note = [], []
     for r in products.itertuples():
         n = ""
+        has_bom = bom_ids is None or int(r.product_id) in bom_ids
         if (r.status if isinstance(r.status, str) else "Active") != "Active":
             g, n = None, "Ngừng bán"
         elif r.category in commercial_categories:
             g = GROUP_COMMERCIAL
+        elif r.category in bom_decides_categories:
+            g = GROUP_PRODUCTION if has_bom else GROUP_COMMERCIAL
+            n = "" if has_bom else "Không có công thức BOM: coi là hàng đóng chai nhập từ NCC"
         else:
             g = GROUP_PRODUCTION
-            if bom_ids is not None and int(r.product_id) not in bom_ids:
+            if not has_bom:
                 n = "Chưa có công thức BOM (vẫn dự báo, nhưng phải khai báo BOM mới lập kế hoạch được)"
         group.append(g)
         note.append(n)
@@ -451,6 +465,8 @@ def main():
                     help="hệ số dự phòng cho NHÓM SẢN XUẤT, ví dụ 0.1 = cộng thêm 10%%")
     ap.add_argument("--commercial-categories", help="các nhóm hàng NHẬP VỀ (không sản xuất tại bếp), cách nhau bằng dấu | "
                     "(mặc định: Đồ uống|Hàng thương mại & Quà tặng)")
+    ap.add_argument("--bom-decides-categories", help="nhóm hàng do BOM quyết định (có BOM = pha chế tại quán, không BOM = nhập từ NCC), "
+                    "cách nhau bằng dấu | (mặc định: Đồ uống)")
     ap.add_argument("--horizon", type=int, default=COMMERCIAL_HORIZON_DAYS,
                     help="số ngày nhu cầu cần dự báo cho hàng nhập về (mặc định 7)")
     ap.add_argument("--model", choices=["auto", "hgb"], default="auto",
@@ -473,7 +489,8 @@ def main():
     conn, ph = connect()
     try:
         orders, details, products_all = load_history(conn, cutoff)
-        cls = classify_products(products_all, load_bom_product_ids(conn), commercial_categories)
+        bom_decides = args.bom_decides_categories.split("|") if args.bom_decides_categories else BOM_DECIDES_CATEGORIES
+        cls = classify_products(products_all, load_bom_product_ids(conn), commercial_categories, bom_decides)
         print_classification(cls)
         products = cls[cls["item_group"].notna()].reset_index(drop=True)
 

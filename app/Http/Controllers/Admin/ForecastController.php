@@ -19,7 +19,7 @@ class ForecastController extends Controller
     {
         $dates = ProductionForecast::query()
             ->select('forecast_date')->distinct()
-            ->orderByDesc('forecast_date')->limit(30)
+            ->orderByDesc('forecast_date')->limit(1500)   // toàn bộ ngày đã có dự báo, để lịch đánh dấu chấm
             ->pluck('forecast_date')
             ->map(fn ($d) => Carbon::parse($d)->toDateString());
 

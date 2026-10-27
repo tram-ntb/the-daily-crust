@@ -10,10 +10,13 @@ return [
     // Thời gian chờ tối đa (giây) khi chạy từ web/artisan
     'timeout' => (int) env('FORECAST_TIMEOUT', 180),
 
-    // NHÓM HÀNG NHẬP TỪ NCC (không sản xuất tại bếp): chỉ dự báo nhu cầu 7 ngày để gợi ý nhập hàng.
-    // Mọi nhóm còn lại (kể cả bánh quy trẻ em) là hàng sản xuất tại bếp, dự báo sản lượng mỗi ngày.
-    // Đây là NGUỒN DUY NHẤT: lệnh Artisan truyền danh sách này cho Python, giao diện cũng đọc từ đây.
-    'commercial_categories' => ['Đồ uống', 'Hàng thương mại & Quà tặng'],
+    // PHÂN LOẠI SẢN PHẨM (nguồn duy nhất: lệnh Artisan truyền sang Python, giao diện và kế hoạch sản xuất cũng đọc từ đây)
+    //  - commercial_categories: luôn là hàng NHẬP từ nhà cung cấp (hàng thương mại, quà tặng): dự báo nhu cầu 7 ngày để gợi ý nhập hàng.
+    //  - bom_decides_categories: nhóm do công thức (BOM) quyết định. Có BOM = pha chế tại quán (cà phê, trà, sinh tố...) -> dự báo
+    //    sản lượng mỗi ngày như hàng sản xuất; KHÔNG có BOM = đóng chai nhập nguyên kiện (nước suối...) -> hàng nhập.
+    //  - Mọi nhóm còn lại (bánh mì, bánh ngọt, món mặn, bánh quy trẻ em...) là hàng sản xuất tại bếp, bất kể hạn dùng.
+    'commercial_categories' => ['Hàng thương mại & Quà tặng'],
+    'bom_decides_categories' => ['Đồ uống'],
 
     // Gợi ý nhập hàng = nhu cầu 7 ngày x (1 + tỷ lệ dự phòng) - tồn hiện tại
     'restock_safety_ratio' => (float) env('FORECAST_RESTOCK_SAFETY', 0.2),
