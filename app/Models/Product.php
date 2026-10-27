@@ -2,7 +2,6 @@
 
 namespace App\Models;
 
-use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 
 /** Sản phẩm / thành phẩm (bảng `products`). Tồn kho thành phẩm nằm ở các lô `product_lots`. */
@@ -32,8 +31,16 @@ class Product extends BakeryModel
         return $this->hasMany(ProductionForecast::class, 'product_id', 'product_id');
     }
 
+    /** Sản phẩm SẢN XUẤT tại bếp (không thuộc nhóm hàng nhập về cấu hình ở config/forecast.php). */
+    public function scopeProducible(\Illuminate\Database\Eloquent\Builder $query): \Illuminate\Database\Eloquent\Builder
+    {
+        $commercial = (array) config('forecast.commercial_categories', []);
+
+        return $query->where(fn ($q) => $q->whereNull('category')->orWhereNotIn('category', $commercial));
+    }
+
     /** Đang kinh doanh (status NULL hoặc 'Active'). */
-    public function scopeActive(Builder $query): Builder
+    public function scopeActive(\Illuminate\Database\Eloquent\Builder $query): \Illuminate\Database\Eloquent\Builder
     {
         return $query->where(function ($q) {
             $q->whereNull('status')->orWhere('status', 'Active');

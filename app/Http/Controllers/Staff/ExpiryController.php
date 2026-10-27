@@ -3,8 +3,8 @@
 namespace App\Http\Controllers\Staff;
 
 use App\Http\Controllers\Controller;
-use App\Models\ProductionForecast;
 use App\Models\ProductLot;
+use App\Models\ProductionForecast;
 use App\Services\ExpiryService;
 use App\Services\InventoryService;
 use App\Services\ProductionPlanningService;
@@ -20,7 +20,8 @@ class ExpiryController extends Controller
     public function __construct(
         private readonly ExpiryService $expiry,
         private readonly ProductionPlanningService $planning,
-    ) {}
+    ) {
+    }
 
     public function index(Request $request): View
     {
@@ -37,7 +38,7 @@ class ExpiryController extends Controller
 
         // Gắn với Phân hệ 4: dự báo cần sản xuất của ngày kế hoạch gần nhất, giúp quyết định hủy hay giảm sản lượng.
         $planDate = $this->planning->defaultDate();
-        $forecast = ProductionForecast::query()->whereDate('forecast_date', $planDate)->orderBy('forecast_id')->get()
+        $forecast = ProductionForecast::production()->whereDate('forecast_date', $planDate)->orderBy('forecast_id')->get()
             ->keyBy('product_id')->map(fn ($f) => (int) $f->predicted_qty);
 
         return view('staff.expiry.index', [

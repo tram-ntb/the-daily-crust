@@ -1,5 +1,9 @@
-{{-- Giỏ hàng khách (Alpine store lưu localStorage) + form đặt hàng online. Được include trong dashboard cho khách đã đăng nhập. --}}
-<div x-data="{ open: false }" @open-cart.window="open = true" class="contents">
+{{-- Giỏ hàng khách LƯU TRONG CSDL theo tài khoản (đồng bộ mọi trình duyệt/thiết bị) + form đặt hàng online.
+     Được include trong dashboard và trang chi tiết sản phẩm cho khách đã đăng nhập. --}}
+@php
+    $cartInitial = auth()->check() ? app(\App\Services\CartService::class)->lines(auth()->user()) : [];
+@endphp
+<div x-data="{ open: {{ $errors->any() ? 'true' : 'false' }} }" @open-cart.window="open = true" class="contents">
 
     {{-- Nút giỏ hàng nổi --}}
     <button type="button" @click="open = true"
@@ -22,7 +26,7 @@
             </div>
 
             <form method="POST" action="{{ route('orders.store') }}" class="flex min-h-0 flex-1 flex-col"
-                  x-data="{ delivery: 'In_Store' }" @submit="if ($store.cart.count === 0)$event.preventDefault()">
+                  x-data="{ delivery: 'In_Store' }" @submit="if ($store.cart.count === 0 || $store.cart.hasProblem) $event.preventDefault()">
                 @csrf
 
                 <div class="flex-1 space-y-3 overflow-y-auto px-5 py-4">
@@ -33,11 +37,8 @@
                     @endif
 
                     <div class="space-y-2.5">
-                        <template x-for="(l, i) in $store.cart.items" :key="l.id">
+                        <template x-for="l in $store.cart.items" :key="l.id">
                             <div class="flex gap-2.5 rounded-lg bg-stone-50 p-2 border border-stone-100 items-center">
-                                <input type="hidden" :name="`items[${i}][product_id]`" :value="l.id">
-                                <input type="hidden" :name="`items[${i}][qty]`" :value="l.qty">
-
                                 {{-- Hình ảnh sản phẩm trong giỏ hàng --}}
                                 <div class="flex h-12 w-12 flex-none items-center justify-center overflow-hidden rounded-md bg-stone-200/60 border border-stone-200">
                                     <template x-if="l.image"><img :src="l.image" :alt="l.name" class="h-full w-full object-cover"></template>
@@ -52,13 +53,14 @@
                                     </div>
                                     
                                     {{-- Hàng 2: Tên phụ, bộ tăng giảm số lượng và nút xóa --}}
+                                    <p x-show="l.problem" x-cloak class="text-xs font-semibold text-red-600"><i class="fa-solid fa-triangle-exclamation mr-1"></i><span x-text="l.problem"></span></p>
                                     <div class="flex items-center justify-between gap-1 pt-1 border-t border-stone-200/60">
                                         <span class="text-xs text-stone-400 truncate max-w-[110px]" x-text="l.sub"></span>
                                         <div class="flex items-center gap-2">
                                             <div class="flex items-center gap-0.5">
-                                                <button type="button" @click="$store.cart.dec(l.id)" class="h-6 w-6 rounded border border-stone-300 bg-white text-stone-600 hover:bg-stone-100 flex items-center justify-center text-xs">−</button>
+                                                <button type="button" @click="$store.cart.dec(l.id)" :disabled="$store.cart.busy" class="h-6 w-6 rounded border border-stone-300 bg-white text-stone-600 hover:bg-stone-100 flex items-center justify-center text-xs">−</button>
                                                 <span class="w-6 text-center text-xs font-bold" x-text="l.qty"></span>
-                                                <button type="button" @click="$store.cart.inc(l.id)" class="h-6 w-6 rounded border border-stone-300 bg-white text-stone-600 hover:bg-stone-100 flex items-center justify-center text-xs">+</button>
+                                                <button type="button" @click="$store.cart.inc(l.id)" :disabled="$store.cart.busy || l.qty >= l.stock" :title="l.qty >= l.stock ? 'Đã đạt số lượng tồn kho' : ''" class="h-6 w-6 rounded border border-stone-300 bg-white text-stone-600 hover:bg-stone-100 flex items-center justify-center text-xs disabled:cursor-not-allowed disabled:opacity-40">+</button>
                                             </div>
                                             <button type="button" @click="$store.cart.remove(l.id)" class="text-stone-400 hover:text-red-600 px-1"><i class="fa-solid fa-trash-can text-xs"></i></button>
                                         </div>
@@ -101,13 +103,23 @@
                         <span class="font-semibold text-stone-600">Tổng cộng</span>
                         <span class="text-2xl font-extrabold text-mint-800" x-text="$store.cart.fmt($store.cart.total)"></span>
                     </div>
-                    <button type="submit" :disabled="$store.cart.count === 0"
+                    <p x-show="$store.cart.hasProblem" x-cloak class="rounded-lg bg-red-50 px-3 py-2 text-sm text-red-700"><i class="fa-solid fa-circle-exclamation mr-1"></i>Giỏ có sản phẩm hết hàng hoặc vượt tồn kho. Hãy giảm số lượng hoặc xóa sản phẩm đó để đặt hàng.</p>
+                    <button type="submit" :disabled="$store.cart.count === 0 || $store.cart.hasProblem || $store.cart.busy"
                             class="w-full rounded-lg bg-mint-700 py-3 font-bold text-white hover:bg-mint-800 disabled:cursor-not-allowed disabled:opacity-50">
                         <i class="fa-solid fa-paper-plane mr-1"></i>Đặt hàng
                     </button>
                 </div>
             </form>
         </aside>
+    </div>
+
+    {{-- Thông báo nổi: hết hàng / vượt tồn / lỗi mạng ngay khi bấm thêm vào giỏ --}}
+    <div x-show="$store.cart.toast" x-cloak x-transition.opacity
+         class="fixed bottom-24 left-1/2 z-[60] w-[92%] max-w-md -translate-x-1/2 rounded-xl px-4 py-3 text-sm font-semibold shadow-xl"
+         :class="$store.cart.toast && $store.cart.toast.type === 'error' ? 'bg-red-600 text-white' : 'bg-mint-800 text-white'"
+         role="alert">
+        <i class="fa-solid mr-2" :class="$store.cart.toast && $store.cart.toast.type === 'error' ? 'fa-triangle-exclamation' : 'fa-circle-check'"></i>
+        <span x-text="$store.cart.toast ? $store.cart.toast.text : ''"></span>
     </div>
 </div>
 
@@ -118,30 +130,123 @@
 @push('scripts')
 <script>
     document.addEventListener('alpine:init', () => {
-        const KEY = 'tdc_cart_v1';
-        const load = () => { try { return JSON.parse(localStorage.getItem(KEY)) || []; } catch (e) { return []; } };
+        const TOKEN = @js(csrf_token());
+        const URLS = {
+            list: @js(route('cart.index')),
+            add: @js(route('cart.add')),
+            item: (id) => @js(url('/cart/items')) + '/' + id,
+            clear: @js(route('cart.clear')),
+            merge: @js(route('cart.merge')),
+            login: @js(route('login')),
+        };
+        const LEGACY_KEY = 'tdc_cart_v1';   // giỏ cũ lưu ở trình duyệt (trước khi chuyển sang CSDL)
 
         Alpine.store('cart', {
-            items: load(),
-            save() { try { localStorage.setItem(KEY, JSON.stringify(this.items)); } catch (e) {} },
+            items: @js($cartInitial),
+            busy: false,
+            toast: null,
+            _t: null,
+
+            init() { this.importLegacy(); },
+
             get count() { return this.items.reduce((s, l) => s + l.qty, 0); },
             get total() { return this.items.reduce((s, l) => s + l.price * l.qty, 0); },
+            get hasProblem() { return this.items.some(l => l.problem); },
             fmt(n) { return new Intl.NumberFormat('vi-VN').format(n) + ' đ'; },
-            add(p) {
-                const l = this.items.find(x => x.id === p.id);
-                if (l) { if (l.qty < 99) l.qty++; } else { this.items.push({ id: p.id, name: p.name, sub: p.sub, price: p.price, image: p.image, qty: 1 }); }
-                this.save();
-                // Đã gỡ bỏ sự kiện tự động mở giỏ hàng (window.dispatchEvent) tại đây
+
+            notify(text, type = 'error') {
+                this.toast = { text, type };
+                clearTimeout(this._t);
+                this._t = setTimeout(() => { this.toast = null; }, 4000);
             },
-            inc(id) { const l = this.items.find(x => x.id === id); if (l && l.qty < 99) { l.qty++; this.save(); } },
+
+            // Gọi máy chủ. Luôn đồng bộ lại items từ phản hồi (kể cả khi lỗi) để tồn kho hiển thị luôn mới.
+            async call(method, url, body) {
+                this.busy = true;
+                try {
+                    const res = await fetch(url, {
+                        method,
+                        credentials: 'same-origin',
+                        headers: {
+                            'Accept': 'application/json', 'Content-Type': 'application/json',
+                            'X-CSRF-TOKEN': TOKEN, 'X-Requested-With': 'XMLHttpRequest',
+                        },
+                        body: body ? JSON.stringify(body) : undefined,
+                    });
+
+                    if (res.redirected || res.status === 401 || res.status === 419) {
+                        this.notify('Phiên đăng nhập đã hết hạn, vui lòng đăng nhập lại.');
+                        setTimeout(() => { window.location.href = URLS.login; }, 1500);
+                        return null;
+                    }
+
+                    let data = {};
+                    try { data = await res.json(); } catch (e) {}
+                    if (Array.isArray(data.items)) this.items = data.items;
+
+                    if (!res.ok) {
+                        const first = data.errors ? Object.values(data.errors).flat()[0] : null;
+                        this.notify(data.message || first || 'Không thể cập nhật giỏ hàng.');
+                        return null;
+                    }
+                    return data;
+                } catch (e) {
+                    this.notify('Lỗi kết nối máy chủ, vui lòng thử lại.');
+                    return null;
+                } finally {
+                    this.busy = false;
+                }
+            },
+
+            // Thêm vào giỏ: chặn NGAY ở trình duyệt nếu đã biết hết hàng / vượt tồn, máy chủ kiểm tra lại lần nữa.
+            async add(p) {
+                const line = this.items.find(x => x.id === p.id);
+                const inCart = line ? line.qty : 0;
+                const known = (typeof p.stock === 'number') ? p.stock : (line ? line.stock : null);
+
+                if (known !== null && known <= 0) {
+                    this.notify(p.name + ' đã hết hàng, không thể thêm vào giỏ.');
+                    return;
+                }
+                if (known !== null && inCart + 1 > known) {
+                    this.notify(p.name + ': chỉ còn ' + known + ' sản phẩm' + (inCart ? ' (trong giỏ bạn đã có ' + inCart + ')' : '') + '.');
+                    return;
+                }
+
+                const data = await this.call('POST', URLS.add, { product_id: p.id, qty: 1 });
+                if (data) this.notify('Đã thêm "' + p.name + '" vào giỏ hàng.', 'ok');
+            },
+
+            inc(id) {
+                const l = this.items.find(x => x.id === id);
+                if (!l) return;
+                if (l.qty + 1 > l.stock) {
+                    this.notify(l.name + ': chỉ còn ' + l.stock + ' sản phẩm.');
+                    return;
+                }
+                return this.call('PUT', URLS.item(id), { qty: l.qty + 1 });
+            },
             dec(id) {
                 const l = this.items.find(x => x.id === id);
                 if (!l) return;
-                if (l.qty > 1) l.qty--; else this.items = this.items.filter(x => x.id !== id);
-                this.save();
+                return this.call('PUT', URLS.item(id), { qty: l.qty - 1 });   // về 0 thì máy chủ xóa dòng
             },
-            remove(id) { this.items = this.items.filter(x => x.id !== id); this.save(); },
-            clear() { this.items = []; this.save(); },
+            remove(id) { return this.call('DELETE', URLS.item(id)); },
+            clear() { return this.call('DELETE', URLS.clear); },
+
+            // Giỏ cũ ở LocalStorage -> chuyển lên tài khoản một lần, rồi xóa khóa cũ.
+            async importLegacy() {
+                let old = [];
+                try { old = JSON.parse(localStorage.getItem(LEGACY_KEY)) || []; } catch (e) { old = []; }
+                if (!Array.isArray(old) || old.length === 0) {
+                    try { localStorage.removeItem(LEGACY_KEY); } catch (e) {}
+                    return;
+                }
+                const data = await this.call('POST', URLS.merge, {
+                    items: old.map(l => ({ product_id: l.id, qty: l.qty })),
+                });
+                if (data) { try { localStorage.removeItem(LEGACY_KEY); } catch (e) {} }
+            },
         });
     });
 </script>

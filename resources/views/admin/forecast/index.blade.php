@@ -1,6 +1,6 @@
 @extends('layouts.system_layout')
 
-@section('title', 'Dự báo nhu cầu sản xuất - The Daily Crust')
+@section('title', 'Dự báo nhu cầu - The Daily Crust')
 
 @section('content')
 <div class="space-y-6">
@@ -58,13 +58,15 @@
         <p class="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm font-medium text-red-800">{{ session('error') }}</p>
     @endif
 
-    @if ($rows->isEmpty())
+    @if ($rows->isEmpty() && $restock->isEmpty())
         <div class="rounded-xl border border-dashed border-stone-300 bg-white p-10 text-center text-stone-500">
             <i class="fa-solid fa-chart-line mb-3 text-3xl text-mint-700/60"></i>
             <p class="font-medium">Chưa có dữ liệu dự báo cho ngày {{ $date->format('d/m/Y') }}.</p>
             <p class="mt-1 text-sm">Bấm “Chạy mô hình dự báo” hoặc chờ lịch tự động lúc 21:00.</p>
         </div>
     @else
+        @if ($rows->isNotEmpty())
+        <h2 class="text-lg font-bold text-mint-900"><i class="fa-solid fa-oven mr-1"></i> Hàng sản xuất tại bếp <span class="text-sm font-normal text-stone-500">· sản lượng cần làm trong ngày</span></h2>
         <div class="grid grid-cols-1 gap-6 xl:grid-cols-3">
             {{-- Biểu đồ --}}
             <div class="rounded-xl border border-stone-200 bg-white p-5 shadow-sm xl:col-span-2">
@@ -128,6 +130,51 @@
                 </tbody>
             </table>
         </div>
+        @endif
+
+        {{-- Hàng nhập về: dự báo 7 ngày để Manager quyết định nhập thêm --}}
+        @if ($restock->isNotEmpty())
+        <div class="space-y-3">
+            <h2 class="text-lg font-bold text-mint-900"><i class="fa-solid fa-truck-ramp-box mr-1"></i> Hàng nhập từ nhà cung cấp <span class="text-sm font-normal text-stone-500">· gợi ý nhập hàng cho 7 ngày tới</span></h2>
+            <div class="overflow-hidden rounded-xl border border-stone-200 bg-white shadow-sm">
+                <table class="w-full text-sm">
+                    <thead class="bg-[#d8e8d2] text-left text-xs font-bold uppercase tracking-wider text-mint-900">
+                        <tr>
+                            <th class="px-4 py-3">Sản phẩm</th>
+                            <th class="px-4 py-3">Nhóm</th>
+                            <th class="px-4 py-3 text-right">Nhu cầu 7 ngày</th>
+                            <th class="px-4 py-3 text-right">TB / ngày</th>
+                            <th class="px-4 py-3 text-right">Tồn hiện tại</th>
+                            <th class="px-4 py-3 text-right">Đủ bán (ngày)</th>
+                            <th class="px-4 py-3 text-right">Gợi ý nhập thêm</th>
+                        </tr>
+                    </thead>
+                    <tbody class="divide-y divide-stone-100">
+                        @foreach ($restock as $r)
+                            <tr class="hover:bg-stone-50">
+                                <td class="px-4 py-2.5 font-medium text-stone-800">{{ $r['name'] }}</td>
+                                <td class="px-4 py-2.5 text-stone-500">{{ $r['category'] }}</td>
+                                <td class="px-4 py-2.5 text-right">{{ $r['demand'] }}</td>
+                                <td class="px-4 py-2.5 text-right text-stone-500">{{ $r['per_day'] }}</td>
+                                <td class="px-4 py-2.5 text-right">{{ $r['stock'] }}</td>
+                                <td class="px-4 py-2.5 text-right {{ $r['cover_days'] !== null && $r['cover_days'] < 3 ? 'font-semibold text-red-700' : 'text-stone-600' }}">{{ $r['cover_days'] ?? '—' }}</td>
+                                <td class="px-4 py-2.5 text-right">
+                                    @if ($r['suggest'] > 0)
+                                        <span class="rounded-md bg-amber-100 px-2 py-1 text-base font-bold text-amber-800">+{{ $r['suggest'] }}</span>
+                                    @else
+                                        <span class="text-xs font-medium text-emerald-700">Đủ hàng</span>
+                                    @endif
+                                </td>
+                            </tr>
+                        @endforeach
+                    </tbody>
+                </table>
+            </div>
+            <p class="text-xs leading-relaxed text-stone-500">
+                Gợi ý = nhu cầu 7 ngày × (1 + {{ round($safety * 100) }}% dự phòng) − tồn bán được hiện tại (lô còn hạn). Đây chỉ là số tham khảo, Manager quyết định số lượng nhập thực tế.
+            </p>
+        </div>
+        @endif
     @endif
 </div>
 @endsection

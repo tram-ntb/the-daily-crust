@@ -2,24 +2,16 @@
 
 namespace App\Http\Controllers;
 
+use Illuminate\Contracts\View\View;
+use App\Models\ProductLot;
 use Illuminate\Database\Query\Builder;
-use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
-use Illuminate\View\View;
 
-/**
- * Trang chủ cửa hàng (mua hàng) — chỉ dành cho khách vãng lai và customer.
- * Staff/manager được chuyển sang dashboard quản trị riêng.
- */
 class DashboardController extends Controller
 {
-    public function __invoke(Request $request): View|RedirectResponse
+    public function __invoke(Request $request): View
     {
-        if (in_array($request->user()?->role, ['manager', 'staff'], true)) {
-            return redirect()->route('admin.dashboard');
-        }
-
         $query = DB::table('products');
         $search = $request->string('search')->trim()->toString();
 
@@ -53,6 +45,18 @@ class DashboardController extends Controller
         }
 
         $products = $query->paginate(12)->withQueryString();
+
+        // Tồn kho BÁN ĐƯỢC (lô còn hàng, chưa hết hạn) của các sản phẩm trong trang này,
+        // để thẻ sản phẩm hiện "Hết hàng" và chặn nút thêm vào giỏ ngay từ đầu.
+        $stock = ProductLot::sellable()
+            ->whereIn('product_id', $products->pluck('product_id')->all())
+            ->get(['product_id', 'remaining_qty'])
+            ->groupBy('product_id')
+            ->map(fn ($lots) => (int) $lots->sum('remaining_qty'));
+
+        $products->getCollection()->each(function ($p) use ($stock) {
+            $p->stock = (int) ($stock[$p->product_id] ?? 0);
+        });
 
         return view('dashboard', compact('products'));
     }

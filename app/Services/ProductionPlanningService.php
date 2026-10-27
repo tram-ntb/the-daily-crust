@@ -4,9 +4,9 @@ namespace App\Services;
 
 use App\Models\Ingredient;
 use App\Models\Product;
+use App\Models\ProductLot;
 use App\Models\ProductionForecast;
 use App\Models\ProductionPlan;
-use App\Models\ProductLot;
 use App\Models\User;
 use Carbon\Carbon;
 use Illuminate\Support\Collection;
@@ -26,7 +26,7 @@ class ProductionPlanningService
     /** Ngày mặc định khi mở trang: ngày có dự báo gần nhất kể từ hôm nay, nếu chưa có thì ngày mai. */
     public function defaultDate(): Carbon
     {
-        $next = ProductionForecast::query()->whereDate('forecast_date', '>=', today())->orderBy('forecast_date')->value('forecast_date');
+        $next = ProductionForecast::production()->whereDate('forecast_date', '>=', today())->orderBy('forecast_date')->value('forecast_date');
 
         return $next ? Carbon::parse($next)->startOfDay() : today()->addDay();
     }
@@ -34,7 +34,7 @@ class ProductionPlanningService
     /** Thông tin lần chạy dự báo của ngày (phiên bản mô hình, thời điểm tạo). */
     public function forecastMeta(Carbon $date): ?array
     {
-        $rows = ProductionForecast::query()->whereDate('forecast_date', $date)->orderBy('forecast_id')->get();
+        $rows = ProductionForecast::production()->whereDate('forecast_date', $date)->orderBy('forecast_id')->get();
         if ($rows->isEmpty()) {
             return null;
         }
@@ -54,7 +54,7 @@ class ProductionPlanningService
      */
     public function rows(Carbon $date): Collection
     {
-        $forecasts = ProductionForecast::query()->whereDate('forecast_date', $date)->orderBy('forecast_id')->get()->keyBy('product_id');
+        $forecasts = ProductionForecast::production()->whereDate('forecast_date', $date)->orderBy('forecast_id')->get()->keyBy('product_id');
         $plans = ProductionPlan::query()->whereDate('plan_date', $date)->withCount('batches')->orderBy('plan_id')->get()->keyBy('product_id');
 
         $dayStart = $date->copy()->setTime(self::BUSINESS_DAY_START_HOUR, 0);
@@ -64,7 +64,7 @@ class ProductionPlanningService
             })
             ->get()->groupBy('product_id')->map(fn ($lots) => (int) $lots->sum('remaining_qty'));
 
-        return Product::active()->with('boms.ingredient')->orderBy('category')->orderBy('vi_name')->get()
+        return Product::active()->producible()->with('boms.ingredient')->orderBy('category')->orderBy('vi_name')->get()
             ->map(function (Product $p) use ($forecasts, $plans, $carry) {
                 $f = $forecasts->get($p->product_id);
                 $plan = $plans->get($p->product_id);
@@ -121,8 +121,8 @@ class ProductionPlanningService
         }
 
         return DB::transaction(function () use ($date, $input, $approve, $manager) {
-            $products = Product::active()->with('boms')->whereIn('product_id', array_keys($input))->get()->keyBy('product_id');
-            $forecasts = ProductionForecast::query()->whereDate('forecast_date', $date)->orderBy('forecast_id')->get()->keyBy('product_id');
+            $products = Product::active()->producible()->with('boms')->whereIn('product_id', array_keys($input))->get()->keyBy('product_id');
+            $forecasts = ProductionForecast::production()->whereDate('forecast_date', $date)->orderBy('forecast_id')->get()->keyBy('product_id');
             $plans = ProductionPlan::query()->whereDate('plan_date', $date)->withCount('batches')->lockForUpdate()->get()->keyBy('product_id');
 
             $stats = ['created' => 0, 'updated' => 0, 'deleted' => 0, 'skipped' => 0, 'approved' => 0];
@@ -139,7 +139,6 @@ class ProductionPlanningService
 
                 if ($plan && ($plan->acknowledged_at !== null || (int) $plan->batches_count > 0)) {
                     $stats['skipped']++;   // đã khóa
-
                     continue;
                 }
 
@@ -148,20 +147,17 @@ class ProductionPlanningService
                         $plan->delete();
                         $stats['deleted']++;
                     }
-
                     continue;
                 }
 
                 if ($product->boms->isEmpty()) {
                     $errors[] = "{$product->vi_name}: chưa có công thức BOM, hãy khai báo BOM trước khi lập kế hoạch.";
-
                     continue;
                 }
 
                 $forecast = $forecasts->get($productId)?->predicted_qty;
                 if ($forecast !== null && $qty !== (int) $forecast && $reason === '') {
                     $errors[] = "{$product->vi_name}: sản lượng ({$qty}) khác dự báo ({$forecast}), vui lòng nhập lý do điều chỉnh.";
-
                     continue;
                 }
 

@@ -4,11 +4,12 @@ namespace App\Http\Controllers\Admin;
 
 use App\Http\Controllers\Controller;
 use App\Models\ProductionForecast;
+use App\Models\ProductLot;
 use Carbon\Carbon;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
-use Illuminate\Support\Facades\Process;
+use Illuminate\Support\Facades\Artisan;
 use Illuminate\View\View;
 
 class ForecastController extends Controller
@@ -28,7 +29,15 @@ class ForecastController extends Controller
             $date = $dates->contains($tomorrow) ? $tomorrow : ($dates->first() ?? $tomorrow);
         }
 
-        $forecasts = ProductionForecast::query()
+        // Hai nhóm dự báo nằm chung bảng, tách theo item_group:
+        //  - Production: sản lượng 1 ngày của hàng làm tại bếp (biểu đồ, tổng, kế hoạch sản xuất)
+        //  - Commercial: nhu cầu 7 ngày của hàng nhập từ NCC (chỉ dùng để gợi ý nhập hàng)
+        $forecasts = ProductionForecast::production()
+            ->whereDate('forecast_date', $date)
+            ->orderByDesc('predicted_qty')
+            ->get();
+
+        $commercialForecasts = ProductionForecast::commercial()
             ->whereDate('forecast_date', $date)
             ->orderByDesc('predicted_qty')
             ->get();
@@ -39,31 +48,59 @@ class ForecastController extends Controller
             ->pluck('planned_qty', 'product_id');
 
         $products = DB::table('products')
-            ->whereIn('product_id', $forecasts->pluck('product_id'))
+            ->whereIn('product_id', $forecasts->pluck('product_id')->merge($commercialForecasts->pluck('product_id')))
             ->get(['product_id', 'vi_name', 'category'])
             ->keyBy('product_id');
 
         $rows = $forecasts->map(fn (ProductionForecast $f) => [
-            'name' => $products[$f->product_id]->vi_name ?? ('Sản phẩm #'.$f->product_id),
-            'category' => $products[$f->product_id]->category ?? null,
-            'forecast' => $f->predicted_qty,
+            'name'       => $products[$f->product_id]->vi_name ?? ('Sản phẩm #'.$f->product_id),
+            'category'   => $products[$f->product_id]->category ?? null,
+            'forecast'   => $f->predicted_qty,
             'confidence' => $f->confidence,
-            'plan' => $plans[$f->product_id] ?? null,
+            'plan'       => $plans[$f->product_id] ?? null,
         ]);
 
-        $latest = $forecasts->sortByDesc('created_at')->first();
+        // Gợi ý nhập hàng = nhu cầu 7 ngày x (1 + dự phòng) - tồn bán được hiện tại (lô còn hạn)
+        $safety = (float) config('forecast.restock_safety_ratio', 0.2);
+        $stock = ProductLot::sellable()
+            ->whereIn('product_id', $commercialForecasts->pluck('product_id'))
+            ->get(['product_id', 'remaining_qty'])
+            ->groupBy('product_id')
+            ->map(fn ($lots) => (int) $lots->sum('remaining_qty'));
+
+        $restock = $commercialForecasts->map(function (ProductionForecast $f) use ($products, $stock, $safety) {
+            $days = max(1, (int) ($f->horizon_days ?: 7));
+            $have = (int) ($stock[$f->product_id] ?? 0);
+            $target = (int) ceil($f->predicted_qty * (1 + $safety));
+
+            return [
+                'name'       => $products[$f->product_id]->vi_name ?? ('Sản phẩm #'.$f->product_id),
+                'category'   => $products[$f->product_id]->category ?? null,
+                'demand'     => $f->predicted_qty,
+                'days'       => $days,
+                'per_day'    => round($f->predicted_qty / $days, 1),
+                'stock'      => $have,
+                'cover_days' => $f->predicted_qty > 0 ? round($have / ($f->predicted_qty / $days), 1) : null,
+                'suggest'    => max(0, $target - $have),
+                'confidence' => $f->confidence,
+            ];
+        })->sortByDesc('suggest')->values();
+
+        $latest = $forecasts->merge($commercialForecasts)->sortByDesc('created_at')->first();
 
         return view('admin.forecast.index', [
-            'date' => Carbon::parse($date),
-            'dates' => $dates,
-            'rows' => $rows,
-            'total' => $forecasts->sum('predicted_qty'),
-            'model' => $latest?->model_version,
-            'createdAt' => $latest?->created_at,
+            'date'       => Carbon::parse($date),
+            'dates'      => $dates,
+            'rows'       => $rows,
+            'restock'    => $restock,
+            'safety'     => $safety,
+            'total'      => $forecasts->sum('predicted_qty'),
+            'model'      => $latest?->model_version,
+            'createdAt'  => $latest?->created_at,
             'isTomorrow' => $date === $tomorrow,
-            'chart' => [
+            'chart'      => [
                 'labels' => $rows->take(12)->pluck('name')->values(),
-                'data' => $rows->take(12)->pluck('forecast')->values(),
+                'data'   => $rows->take(12)->pluck('forecast')->values(),
             ],
         ]);
     }
@@ -71,20 +108,12 @@ class ForecastController extends Controller
     /** Nút "Chạy mô hình dự báo": gọi script Python ngay (dùng khi demo, không cần chờ 21:00). */
     public function run(Request $request): RedirectResponse
     {
-        $script = config('forecast.script');
-        if (! is_file($script)) {
-            return back()->with('error', 'Không tìm thấy script Python: '.$script);
+        // Dùng đúng lệnh Artisan của hệ thống (cùng đường chạy với lịch 21:00, tự truyền nhóm hàng từ config)
+        $exit = Artisan::call('app:run-production-forecast');
+        if ($exit !== 0) {
+            return back()->with('error', 'Chạy dự báo thất bại: '.str(trim(Artisan::output()))->limit(400));
         }
 
-        $result = Process::path(base_path())
-            ->env(['PYTHONIOENCODING' => 'utf-8'])
-            ->timeout(config('forecast.timeout'))
-            ->run([config('forecast.python'), $script, '--env-file', base_path('.env')]);
-
-        if ($result->failed()) {
-            return back()->with('error', 'Chạy dự báo thất bại: '.str($result->errorOutput() ?: $result->output())->limit(400));
-        }
-
-        return redirect()->route('admin.forecast.index')->with('success', 'Đã chạy mô hình và cập nhật dự báo ngày mai.');
+        return redirect()->route('admin.forecast.index')->with('success', 'Đã chạy mô hình: cập nhật dự báo sản xuất ngày mai và gợi ý nhập hàng 7 ngày.');
     }
 }

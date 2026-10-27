@@ -78,7 +78,7 @@ class BatchController extends Controller
     /** Mỗi ngày: dự báo, kế hoạch, số đạt, số lỗi => biết dự báo/kế hoạch lệch bao nhiêu so với thực tế. */
     private function dailyComparison(Carbon $from, Carbon $to, ?int $productId)
     {
-        $forecasts = ProductionForecast::query()->whereBetween('forecast_date', [$from, $to])
+        $forecasts = ProductionForecast::production()->whereBetween('forecast_date', [$from, $to])
             ->when($productId, fn ($q) => $q->where('product_id', $productId))
             ->orderBy('forecast_id')->get()
             ->groupBy(fn ($f) => $f->forecast_date->toDateString())

@@ -5,16 +5,18 @@ use App\Http\Controllers\Admin\ForecastController;
 use App\Http\Controllers\Admin\ProductionPlanController;
 use App\Http\Controllers\AdminDashboardController;
 use App\Http\Controllers\Auth\LoginController;
+use App\Http\Controllers\Customer\CartController;
 use App\Http\Controllers\Customer\OnlineOrderController;
 use App\Http\Controllers\DashboardController;
+use App\Http\Controllers\ProductDetailController;
 use App\Http\Controllers\Staff\BatchController;
 use App\Http\Controllers\Staff\CatalogController;
 use App\Http\Controllers\Staff\ExpiryController;
 use App\Http\Controllers\Staff\PosController;
 use App\Http\Controllers\Staff\ProductionController;
 use App\Http\Controllers\Staff\StocktakeController;
-use App\Http\Controllers\Staff\WasteController;
 use App\Http\Controllers\Staff\WorklistController;
+use App\Http\Controllers\Staff\WasteController;
 use App\Http\Middleware\CheckRole;
 use Illuminate\Support\Facades\Route;
 
@@ -26,12 +28,21 @@ Route::get('/dashboard', DashboardController::class)->name('dashboard');
 // 3. Xác thực (Đăng nhập, Đăng ký, Đăng xuất)
 Route::get('/login', [LoginController::class, 'create'])->name('login');
 Route::post('/login', [LoginController::class, 'store'])->name('login.store');
-Route::get('/admin/login', fn () => redirect()->route('login'))->name('admin.login');
 Route::post('/register', [LoginController::class, 'storeRegister'])->name('register.store');
 Route::post('/logout', [LoginController::class, 'destroy'])->name('logout');
 
-// 2. ĐẶT HÀNG ONLINE (chỉ khách hàng đã đăng nhập)
+// Trang chi tiết sản phẩm: CÔNG KHAI (khách vãng lai cũng xem được), chỉ liệt kê tên nguyên liệu, không định lượng
+Route::get('/products/{product}', [ProductDetailController::class, 'show'])->whereNumber('product')->name('products.show');
+
+// 2. GIỎ HÀNG (lưu trong CSDL theo tài khoản) + ĐẶT HÀNG ONLINE (chỉ khách hàng đã đăng nhập)
 Route::middleware(['auth', CheckRole::class.':customer'])->group(function () {
+    Route::get('/cart', [CartController::class, 'index'])->name('cart.index');
+    Route::post('/cart/items', [CartController::class, 'store'])->name('cart.add');
+    Route::put('/cart/items/{productId}', [CartController::class, 'update'])->whereNumber('productId')->name('cart.update');
+    Route::delete('/cart/items/{productId}', [CartController::class, 'destroy'])->whereNumber('productId')->name('cart.remove');
+    Route::delete('/cart', [CartController::class, 'clear'])->name('cart.clear');
+    Route::post('/cart/merge', [CartController::class, 'merge'])->name('cart.merge');
+
     Route::post('/orders', [OnlineOrderController::class, 'store'])->name('orders.store');
     Route::get('/my-orders', [OnlineOrderController::class, 'mine'])->name('orders.mine');
 });

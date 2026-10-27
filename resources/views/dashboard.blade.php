@@ -61,7 +61,7 @@
                         </button>
                     @endauth
 
-                    <div class="h-48 bg-stone-100 rounded-t-xl relative overflow-hidden flex items-center justify-center">
+                    <a href="{{ route('products.show', $product->product_id) }}" class="h-48 bg-stone-100 rounded-t-xl relative overflow-hidden flex items-center justify-center" aria-label="Xem thành phần {{ $product->vi_name }}">
                         @if($product->image_url && file_exists(public_path($product->image_url)))
                             <img src="{{ asset($product->image_url) }}" alt="{{ $product->vi_name }}" class="w-full h-full object-cover group-hover:scale-105 transition duration-300">
                         @else
@@ -70,20 +70,26 @@
                                 <span class="text-xs">The Daily Crust</span>
                             </div>
                         @endif
-                    </div>
+                    </a>
 
                     <!-- Thông tin sản phẩm -->
                     <div class="p-4 flex-1 flex flex-col justify-between">
                         <div>
-                            <h3 class="font-black text-stone-900 text-lg leading-snug group-hover:text-mint-700 transition">
-                                {{ $product->item }}
-                            </h3>
+                            <a href="{{ route('products.show', $product->product_id) }}" class="block">
+                                <h3 class="font-black text-stone-900 text-lg leading-snug group-hover:text-mint-700 transition">
+                                    {{ $product->item }}
+                                </h3>
+                            </a>
                             <p class="text-sm font-semibold text-stone-700 mt-0.5">
                                 {{ $product->vi_name }}
                             </p>
                             <p class="text-xs text-stone-500 mt-1.5 line-clamp-2">
                                 {{ $product->description ?? 'Bánh thủ công thơm ngon từ nguyên liệu tự nhiên.' }}
                             </p>
+                            @php $stock = (int) ($product->stock ?? 0); @endphp
+                            <span class="mt-2 inline-block rounded-full px-2 py-0.5 text-[11px] font-semibold {{ $stock <= 0 ? 'bg-red-100 text-red-700' : ($stock <= 5 ? 'bg-amber-100 text-amber-800' : 'bg-emerald-50 text-emerald-700') }}">
+                                {{ $stock <= 0 ? 'Hết hàng' : ($stock <= 5 ? 'Sắp hết: còn '.$stock : 'Còn hàng') }}
+                            </span>
                         </div>
 
                         <div class="mt-4 pt-3 border-t border-stone-100 flex items-center justify-between">
@@ -91,11 +97,17 @@
                                 {{ number_format($product->price, 0, ',', '.') }} đ
                             </span>
                             @auth
-                                <button type="button"
-                                        @click="$store.cart.add({ id: {{ $product->product_id }}, name: @js($product->vi_name), sub: @js($product->item), price: {{ (int) $product->price }}, image: @js($product->image_url ? asset($product->image_url) : null) })"
-                                        class="w-10 h-10 rounded-lg bg-emerald-50 text-mint-700 hover:bg-mint-700 hover:text-white transition flex items-center justify-center shadow-xs" title="Thêm vào giỏ hàng">
-                                    <i class="fa-solid fa-cart-plus text-base"></i>
-                                </button>
+                                @if ($stock <= 0)
+                                    <button type="button" disabled class="w-10 h-10 rounded-lg bg-stone-100 text-stone-300 cursor-not-allowed flex items-center justify-center" title="Sản phẩm đã hết hàng">
+                                        <i class="fa-solid fa-ban text-base"></i>
+                                    </button>
+                                @else
+                                    <button type="button"
+                                            @click="$store.cart.add({ id: {{ $product->product_id }}, name: @js($product->vi_name), sub: @js($product->item), price: {{ (int) $product->price }}, image: @js($product->image_url ? asset($product->image_url) : null), stock: {{ $stock }} })"
+                                            class="w-10 h-10 rounded-lg bg-emerald-50 text-mint-700 hover:bg-mint-700 hover:text-white transition flex items-center justify-center shadow-xs" title="Thêm vào giỏ hàng">
+                                        <i class="fa-solid fa-cart-plus text-base"></i>
+                                    </button>
+                                @endif
                             @else
                                 <button onclick="alert('Vui lòng đăng nhập để thêm sản phẩm vào giỏ hàng!')" class="w-10 h-10 rounded-lg bg-emerald-50 text-mint-700 hover:bg-mint-700 hover:text-white transition flex items-center justify-center shadow-xs">
                                     <i class="fa-solid fa-cart-shopping text-base"></i>
