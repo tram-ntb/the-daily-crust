@@ -47,6 +47,21 @@ class Product extends BakeryModel
         ));
     }
 
+    /** Sản phẩm PHA THEO ĐƠN (đồ uống pha tại quán): có dự báo và kế hoạch nguyên liệu nhưng không ghi nhận theo mẻ. */
+    public function isMadeToOrder(): bool
+    {
+        return in_array($this->category, (array) config('forecast.made_to_order_categories', []), true);
+    }
+
+    /** Sản phẩm làm theo MẺ (bánh mì, bánh ngọt...): sản xuất tại quán và không thuộc nhóm pha theo đơn. Dùng cho ghi nhận / theo dõi mẻ. */
+    public function scopeBatchable(\Illuminate\Database\Eloquent\Builder $query): \Illuminate\Database\Eloquent\Builder
+    {
+        $madeToOrder = (array) config('forecast.made_to_order_categories', []);
+
+        return $query->producible()
+            ->where(fn ($q) => $q->whereNull('category')->orWhereNotIn('category', $madeToOrder));
+    }
+
     /** Đang kinh doanh (status NULL hoặc 'Active'). */
     public function scopeActive(\Illuminate\Database\Eloquent\Builder $query): \Illuminate\Database\Eloquent\Builder
     {

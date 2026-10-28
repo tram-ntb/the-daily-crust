@@ -52,9 +52,12 @@ class ForecastController extends Controller
             ->get(['product_id', 'vi_name', 'category'])
             ->keyBy('product_id');
 
+        $madeToOrder = (array) config('forecast.made_to_order_categories', []);
+
         $rows = $forecasts->map(fn (ProductionForecast $f) => [
             'name'       => $products[$f->product_id]->vi_name ?? ('Sản phẩm #'.$f->product_id),
             'category'   => $products[$f->product_id]->category ?? null,
+            'made_to_order' => in_array($products[$f->product_id]->category ?? null, $madeToOrder, true),
             'forecast'   => $f->predicted_qty,
             'confidence' => $f->confidence,
             'plan'       => $plans[$f->product_id] ?? null,

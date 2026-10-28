@@ -3,13 +3,13 @@
 namespace App\Services;
 
 use App\Models\Ingredient;
-use App\Models\IngredientStockTransaction;
 use App\Models\InventoryWaste;
-use App\Models\ProductionBatch;
-use App\Models\ProductionPlan;
+use App\Models\IngredientStockTransaction;
 use App\Models\ProductLot;
 use App\Models\ProductStockMovement;
 use App\Models\ProductStockTransaction;
+use App\Models\ProductionBatch;
+use App\Models\ProductionPlan;
 use App\Models\User;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
@@ -31,6 +31,17 @@ class ProductionService
         'Rơi vỡ khi thao tác',
         'Khác',
     ];
+
+    /** Đồ uống pha theo đơn không ghi nhận theo mẻ: chặn ở tầng nghiệp vụ để mọi đường vào (web, API) đều bị chặn. */
+    public function assertBatchable(ProductionPlan $plan): void
+    {
+        $plan->loadMissing('product');
+        if ($plan->product && $plan->product->isMadeToOrder()) {
+            throw ValidationException::withMessages([
+                'plan' => "{$plan->product->vi_name} là đồ uống pha theo đơn nên không ghi nhận theo mẻ. Kế hoạch này chỉ dùng để chuẩn bị nguyên liệu.",
+            ]);
+        }
+    }
 
     /** Số lượng còn được phép ghi nhận "đạt" của kế hoạch (kế hoạch - đã đạt từ các mẻ trước). */
     public function remainingQty(ProductionPlan $plan): int
@@ -68,6 +79,7 @@ class ProductionService
     {
         DB::transaction(function () use ($plan, $user) {
             $locked = ProductionPlan::lockForUpdate()->findOrFail($plan->plan_id);
+            $this->assertBatchable($locked);
 
             if (! $locked->isApproved()) {
                 throw ValidationException::withMessages(['plan' => 'Kế hoạch chưa được Quản lý duyệt.']);
@@ -100,6 +112,7 @@ class ProductionService
 
         return DB::transaction(function () use ($plan, $passed, $failed, $byType, $failureNote, $user, $startTime, $endTime) {
             $plan = ProductionPlan::with('product.boms')->lockForUpdate()->findOrFail($plan->plan_id);
+            $this->assertBatchable($plan);
 
             if (! $plan->isApproved() || ! $plan->isAcknowledged()) {
                 throw ValidationException::withMessages(['plan' => 'Kế hoạch phải được Quản lý duyệt và Staff xác nhận trước khi ghi nhận mẻ.']);

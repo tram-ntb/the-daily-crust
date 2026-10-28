@@ -22,7 +22,9 @@ class ProductionController extends Controller
     /** Các vị trí được ghi nhận mẻ bánh. */
     private const KITCHEN_POSITIONS = ['Thợ làm bánh chính', 'Nhân viên phụ làm bánh', 'Thợ trang trí bánh'];
 
-    public function __construct(private readonly ProductionService $production) {}
+    public function __construct(private readonly ProductionService $production)
+    {
+    }
 
     public function index(Request $request): View
     {
@@ -31,6 +33,7 @@ class ProductionController extends Controller
 
         $plans = ProductionPlan::query()
             ->with('product')
+            ->whereHas('product', fn ($q) => $q->batchable())     // đồ uống pha theo đơn không qua màn hình ghi nhận mẻ
             ->withSum('batches as passed_total', 'passed_qty')
             ->withSum('batches as failed_total', 'failed_qty')
             ->whereDate('plan_date', $date)
@@ -44,7 +47,9 @@ class ProductionController extends Controller
         $recentDates = ProductionPlan::query()->select('plan_date')->distinct()->orderByDesc('plan_date')->limit(6)->pluck('plan_date')
             ->map(fn ($d) => Carbon::parse($d)->toDateString());
 
-        $batches = ProductionBatch::query()->with(['product', 'user'])->orderByDesc('batch_date')->limit(15)->get();
+        $batches = ProductionBatch::query()->with(['product', 'user'])
+            ->whereHas('product', fn ($q) => $q->batchable())
+            ->orderByDesc('batch_date')->limit(15)->get();
 
         return view('staff.production.index', [
             'date' => $date,
@@ -75,6 +80,10 @@ class ProductionController extends Controller
         abort_unless(in_array($request->user()->position, self::KITCHEN_POSITIONS, true), 403, 'Bạn không thuộc bộ phận làm bánh.');
 
         $plan->load('product');
+        if ($plan->product->isMadeToOrder()) {
+            return redirect()->route('admin.production.index', ['date' => $plan->plan_date->toDateString()])
+                ->withErrors(['plan' => "{$plan->product->vi_name} là đồ uống pha theo đơn nên không ghi nhận theo mẻ."]);
+        }
         if (! $plan->isApproved() || ! $plan->isAcknowledged()) {
             return redirect()->route('admin.production.index', ['date' => $plan->plan_date->toDateString()])
                 ->withErrors(['plan' => 'Kế hoạch phải được duyệt và xác nhận trước khi ghi nhận mẻ.']);

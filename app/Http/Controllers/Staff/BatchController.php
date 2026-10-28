@@ -31,7 +31,11 @@ class BatchController extends Controller
         }
         $productId = $request->integer('product_id') ?: null;
 
+        // Chỉ sản phẩm làm theo MẺ: đồ uống pha theo đơn không có mẻ nên bị loại khỏi mọi thống kê ở đây
+        $batchableIds = Product::batchable()->pluck('product_id')->all();
+
         $base = ProductionBatch::query()
+            ->whereIn('product_id', $batchableIds)
             ->whereBetween('batch_date', [$from, $to])
             ->when($productId, fn ($q) => $q->where('product_id', $productId));
 
@@ -45,7 +49,7 @@ class BatchController extends Controller
             'from' => $from,
             'to' => $to,
             'productId' => $productId,
-            'products' => Product::active()->orderBy('vi_name')->get(['product_id', 'vi_name']),
+            'products' => Product::active()->batchable()->orderBy('vi_name')->get(['product_id', 'vi_name']),
             'batches' => $batches,
             'totals' => [
                 'batches' => (clone $base)->count(),
@@ -54,16 +58,17 @@ class BatchController extends Controller
                 'failed' => $failed,
                 'rate' => $produced > 0 ? round($passed / $produced * 100, 1) : null,
             ],
-            'failureStats' => $this->failureStats($from, $to, $productId),
-            'daily' => $this->dailyComparison($from, $to, $productId),
+            'failureStats' => $this->failureStats($from, $to, $productId, $batchableIds),
+            'daily' => $this->dailyComparison($from, $to, $productId, $batchableIds),
         ]);
     }
 
     /** Thống kê loại lỗi từ các phiếu hủy tự sinh khi ghi mẻ ("Lỗi sản xuất: <loại>"). */
-    private function failureStats(Carbon $from, Carbon $to, ?int $productId)
+    private function failureStats(Carbon $from, Carbon $to, ?int $productId, array $batchableIds)
     {
         $tickets = InventoryWaste::query()
             ->where('reason_type', 'like', 'Lỗi sản xuất:%')
+            ->whereIn('product_id', $batchableIds)
             ->whereBetween('ticket_date', [$from, $to])
             ->when($productId, fn ($q) => $q->where('product_id', $productId))
             ->get();
@@ -76,20 +81,20 @@ class BatchController extends Controller
     }
 
     /** Mỗi ngày: dự báo, kế hoạch, số đạt, số lỗi => biết dự báo/kế hoạch lệch bao nhiêu so với thực tế. */
-    private function dailyComparison(Carbon $from, Carbon $to, ?int $productId)
+    private function dailyComparison(Carbon $from, Carbon $to, ?int $productId, array $batchableIds)
     {
-        $forecasts = ProductionForecast::production()->whereBetween('forecast_date', [$from, $to])
+        $forecasts = ProductionForecast::production()->whereIn('product_id', $batchableIds)->whereBetween('forecast_date', [$from, $to])
             ->when($productId, fn ($q) => $q->where('product_id', $productId))
             ->orderBy('forecast_id')->get()
             ->groupBy(fn ($f) => $f->forecast_date->toDateString())
             ->map(fn ($day) => (int) $day->unique('product_id')->sum('predicted_qty'));
 
-        $plans = ProductionPlan::query()->whereBetween('plan_date', [$from, $to])
+        $plans = ProductionPlan::query()->whereIn('product_id', $batchableIds)->whereBetween('plan_date', [$from, $to])
             ->when($productId, fn ($q) => $q->where('product_id', $productId))
             ->get()->groupBy(fn ($p) => $p->plan_date->toDateString())
             ->map(fn ($day) => (int) $day->sum('planned_qty'));
 
-        $batches = ProductionBatch::query()->whereBetween('batch_date', [$from, $to])
+        $batches = ProductionBatch::query()->whereIn('product_id', $batchableIds)->whereBetween('batch_date', [$from, $to])
             ->when($productId, fn ($q) => $q->where('product_id', $productId))
             ->get()->groupBy(fn ($b) => $b->batch_date->toDateString());
 

@@ -77,6 +77,7 @@ class ProductionPlanningService
                     'sub' => $p->item,
                     'category' => $p->category,
                     'has_bom' => $p->boms->isNotEmpty(),
+                    'made_to_order' => $p->isMadeToOrder(),   // đồ uống pha theo đơn: chỉ để chuẩn bị nguyên liệu, bếp không ghi mẻ
                     'forecast' => $forecast,
                     'confidence' => $f?->confidence,
                     'carry' => $stock,

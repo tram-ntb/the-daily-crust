@@ -87,6 +87,7 @@
                                         <td class="px-3 py-2.5 align-top">
                                             <span class="block font-bold text-stone-900" x-text="r.name"></span>
                                             <span class="block text-xs text-stone-400" x-text="r.sub"></span>
+                                            <span x-show="r.made_to_order" x-cloak class="mt-1 inline-block rounded-full bg-sky-100 px-2 py-0.5 text-[11px] font-semibold text-sky-800">Pha theo đơn · chỉ để chuẩn bị nguyên liệu</span>
                                             <a x-show="!r.has_bom" x-cloak href="{{ route('admin.bom.index', ['filter' => 'missing']) }}" class="mt-1 inline-block rounded-full bg-red-100 px-2 py-0.5 text-[11px] font-semibold text-red-800">Chưa có BOM</a>
                                         </td>
                                         <td class="px-3 py-2.5 text-right align-top">
@@ -116,6 +117,7 @@
                                                 <span x-show="r.plan_id !== null && !r.approved" x-cloak class="rounded-full bg-amber-100 px-2 py-0.5 text-amber-800">Nháp - chờ duyệt</span>
                                                 <span x-show="r.approved" x-cloak class="rounded-full bg-emerald-100 px-2 py-0.5 text-emerald-800">Đã duyệt</span>
                                                 <span x-show="r.acknowledged" x-cloak class="rounded-full bg-sky-100 px-2 py-0.5 text-sky-800">Bếp đã nhận</span>
+                                                <span x-show="r.made_to_order && r.plan_id !== null" x-cloak class="rounded-full bg-stone-100 px-2 py-0.5 text-stone-500">Không ghi mẻ</span>
                                                 <span x-show="r.batches > 0" x-cloak class="rounded-full bg-mint-700/10 px-2 py-0.5 text-mint-800" x-text="r.batches + ' mẻ đã làm'"></span>
                                                 <span x-show="r.status && r.plan_id !== null" x-cloak class="font-normal text-stone-400" x-text="statusText(r.status)"></span>
                                                 <template x-if="r.plan_id !== null && !r.locked && !locked">

@@ -1,10 +1,10 @@
 @extends('layouts.system_layout')
- 
+
 @section('title', 'Dự báo nhu cầu - The Daily Crust')
- 
+
 @section('content')
 <div class="space-y-6">
- 
+
     {{-- Tiêu đề + chọn ngày + nút chạy --}}
     <div class="flex flex-wrap items-end justify-between gap-3">
         <div>
@@ -21,7 +21,7 @@
                 @endif
             </p>
         </div>
- 
+
         <div class="flex flex-wrap items-center gap-2">
             {{-- Chọn ngày bằng LỊCH: ngày đã có dự báo có chấm xanh; nút ‹ › nhảy từng ngày --}}
             <form method="GET" id="forecastDateForm" action="{{ route('admin.forecast.index') }}" class="flex items-center gap-1.5">
@@ -35,7 +35,7 @@
                 <a href="{{ route('admin.forecast.index', ['date' => $date->copy()->addDay()->toDateString()]) }}" title="Ngày sau"
                    class="flex h-9 w-9 items-center justify-center rounded-lg border border-stone-300 bg-white text-stone-600 hover:bg-stone-50"><i class="fa-solid fa-chevron-right text-xs"></i></a>
             </form>
- 
+
             @if (Route::has('admin.forecast.run'))
                 <form method="POST" action="{{ route('admin.forecast.run') }}"
                       x-data="{ busy: false }" @submit="busy = true">
@@ -50,14 +50,14 @@
             @endif
         </div>
     </div>
- 
+
     @if (session('success'))
         <p class="rounded-lg border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm font-medium text-emerald-800">{{ session('success') }}</p>
     @endif
     @if (session('error'))
         <p class="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm font-medium text-red-800">{{ session('error') }}</p>
     @endif
- 
+
     @if ($rows->isEmpty() && $restock->isEmpty())
         <div class="rounded-xl border border-dashed border-stone-300 bg-white p-10 text-center text-stone-500">
             <i class="fa-solid fa-chart-line mb-3 text-3xl text-mint-700/60"></i>
@@ -66,7 +66,7 @@
         </div>
     @else
         @if ($rows->isNotEmpty())
-        <h2 class="text-lg font-bold text-mint-900"><i class="fa-solid fa-oven mr-1"></i> Hàng sản xuất tại bếp <span class="text-sm font-normal text-stone-500">· sản lượng cần làm trong ngày</span></h2>
+        <h2 class="text-lg font-bold text-mint-900"><i class="fa-solid fa-oven mr-1"></i> Hàng sản xuất và pha chế tại quán <span class="text-sm font-normal text-stone-500">· sản lượng cần làm trong ngày (đồ uống pha theo đơn dùng để chuẩn bị nguyên liệu)</span></h2>
         <div class="grid grid-cols-1 gap-6 xl:grid-cols-3">
             {{-- Biểu đồ --}}
             <div class="rounded-xl border border-stone-200 bg-white p-5 shadow-sm xl:col-span-2">
@@ -76,7 +76,7 @@
                 </div>
                 <div class="h-72"><canvas id="forecastChart"></canvas></div>
             </div>
- 
+
             {{-- Tóm tắt --}}
             <div class="space-y-3 rounded-xl border border-stone-200 bg-white p-5 shadow-sm">
                 <h2 class="font-semibold text-mint-900">Tóm tắt</h2>
@@ -91,7 +91,7 @@
                 </p>
             </div>
         </div>
- 
+
         {{-- Bảng chi tiết --}}
         <div class="overflow-hidden rounded-xl border border-stone-200 bg-white shadow-sm">
             <table class="w-full text-sm">
@@ -108,7 +108,7 @@
                     @foreach ($rows as $r)
                         <tr class="hover:bg-stone-50">
                             <td class="px-4 py-2.5 font-medium text-stone-800">{{ $r['name'] }}</td>
-                            <td class="px-4 py-2.5 text-stone-500">{{ $r['category'] }}</td>
+                            <td class="px-4 py-2.5 text-stone-500">{{ $r['category'] }}@if ($r['made_to_order']) <span class="ml-1 rounded-full bg-sky-100 px-2 py-0.5 text-[11px] font-semibold text-sky-800">Pha theo đơn</span>@endif</td>
                             <td class="px-4 py-2.5 text-right text-base font-bold text-mint-800">{{ $r['forecast'] }}</td>
                             <td class="px-4 py-2.5 text-right">
                                 @if ($r['plan'] === null)
@@ -131,7 +131,7 @@
             </table>
         </div>
         @endif
- 
+
         {{-- Hàng nhập về: dự báo 7 ngày để Manager quyết định nhập thêm --}}
         @if ($restock->isNotEmpty())
         <div class="space-y-3">
@@ -178,7 +178,7 @@
     @endif
 </div>
 @endsection
- 
+
 @push('styles')
 <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/flatpickr@4.6.13/dist/flatpickr.min.css">
 <style>
@@ -188,7 +188,7 @@
     .flatpickr-day.selected { background: #3f6b3a; border-color: #3f6b3a; }
 </style>
 @endpush
- 
+
 @push('scripts')
 <script src="https://cdn.jsdelivr.net/npm/flatpickr@4.6.13/dist/flatpickr.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/flatpickr@4.6.13/dist/l10n/vn.js"></script>
@@ -210,7 +210,7 @@
     })();
 </script>
 @endpush
- 
+
 @push('scripts')
 @if ($rows->isNotEmpty())
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>

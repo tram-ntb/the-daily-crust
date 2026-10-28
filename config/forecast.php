@@ -18,6 +18,10 @@ return [
     'commercial_categories' => ['Hàng thương mại & Quà tặng'],
     'bom_decides_categories' => ['Đồ uống'],
 
+    //  - made_to_order_categories: nhóm PHA THEO ĐƠN (cà phê, trà, sinh tố...). Vẫn được dự báo và đưa vào kế hoạch nguyên liệu theo BOM,
+    //    nhưng KHÔNG ghi nhận theo mẻ: không xuất hiện ở màn hình Tiến độ sản xuất / Ghi nhận mẻ / Theo dõi mẻ nướng và không tạo lô thành phẩm.
+    'made_to_order_categories' => ['Đồ uống'],
+
     // Gợi ý nhập hàng = nhu cầu 7 ngày x (1 + tỷ lệ dự phòng) - tồn hiện tại
     'restock_safety_ratio' => (float) env('FORECAST_RESTOCK_SAFETY', 0.2),
 ];
