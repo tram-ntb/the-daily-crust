@@ -4,6 +4,8 @@ namespace App\Http\Controllers\Staff;
 
 use App\Http\Controllers\Controller;
 use App\Models\Order;
+use App\Services\DeliveryEstimator;
+use App\Services\NotifyService;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -15,6 +17,8 @@ use Illuminate\View\View;
 class WorklistController extends Controller
 {
     private const ACTIVE = [Order::STATUS_NEW, Order::STATUS_PREPARING, Order::STATUS_READY];
+
+    public function __construct(private readonly NotifyService $notify) {}
 
     public function index(Request $request): View
     {
@@ -51,7 +55,7 @@ class WorklistController extends Controller
     public function advance(Request $request, Order $order): RedirectResponse
     {
         try {
-            DB::transaction(function () use ($order) {
+            $updated = DB::transaction(function () use ($order) {
                 $locked = Order::lockForUpdate()->findOrFail($order->order_id);
                 $next = Order::NEXT_STATUS[$locked->status] ?? null;
 
@@ -62,6 +66,10 @@ class WorklistController extends Controller
                 $changes = ['status' => $next];
                 if ($next === Order::STATUS_READY) {
                     $changes['prepared_at'] = now();
+                    // Đơn giao tận nơi bắt đầu đi giao: cập nhật giờ TỚI NƠI dự kiến = giờ xuất phát + thời gian di chuyển
+                    if ($locked->isOnline() && $locked->isDelivery()) {
+                        $changes['estimated_delivery_at'] = (new DeliveryEstimator)->estimateArrival(now());
+                    }
                 }
                 if ($next === Order::STATUS_COMPLETED) {
                     $changes['completed_at'] = now();
@@ -75,7 +83,12 @@ class WorklistController extends Controller
                 } elseif ($next === Order::STATUS_READY) {
                     $locked->delivery()?->update(['delivery_status' => 'Ready', 'picked_up_at' => now()]);
                 }
+
+                return $locked->refresh();
             });
+
+            // Báo khách: đang đóng gói / đã chuẩn bị xong / đang trên đường giao / hoàn tất (sau khi transaction đã commit)
+            $this->notify->orderStatusChanged($updated);
         } catch (ValidationException $e) {
             return back()->withErrors($e->errors());
         }

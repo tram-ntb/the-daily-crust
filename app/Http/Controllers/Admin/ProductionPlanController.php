@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Admin;
 
 use App\Http\Controllers\Controller;
 use App\Models\ProductionPlan;
+use App\Services\NotifyService;
 use App\Services\ProductionPlanningService;
 use Carbon\Carbon;
 use Illuminate\Http\RedirectResponse;
@@ -14,7 +15,10 @@ use Illuminate\View\View;
 /** Lập & duyệt kế hoạch sản xuất hằng ngày dựa trên dự báo (CHỈ Manager, chặn ở route). */
 class ProductionPlanController extends Controller
 {
-    public function __construct(private readonly ProductionPlanningService $planning) {}
+    public function __construct(
+        private readonly ProductionPlanningService $planning,
+        private readonly NotifyService $notify,
+    ) {}
 
     public function index(Request $request): View
     {
@@ -50,6 +54,10 @@ class ProductionPlanController extends Controller
             return back()->withErrors($e->errors())->withInput();
         }
 
+        if ($stats['approved'] > 0) {
+            $this->notifyKitchen($date, (int) $stats['approved']);
+        }
+
         $msg = "Đã lưu kế hoạch ngày {$date->format('d/m/Y')}: thêm {$stats['created']}, sửa {$stats['updated']}, xóa {$stats['deleted']}";
         $msg .= $stats['approved'] ? ", duyệt {$stats['approved']} kế hoạch." : '. Kế hoạch ở trạng thái nháp, chưa duyệt.';
         if ($stats['skipped']) {
@@ -67,6 +75,8 @@ class ProductionPlanController extends Controller
             return back()->withErrors($e->errors());
         }
 
+        $this->notifyKitchen($plan->plan_date->copy()->startOfDay(), 1);
+
         return back()->with('success', "Đã duyệt kế hoạch #{$plan->plan_id}.");
     }
 
@@ -79,5 +89,18 @@ class ProductionPlanController extends Controller
         }
 
         return back()->with('success', "Đã thu hồi duyệt kế hoạch #{$plan->plan_id}.");
+    }
+
+    /** Báo bộ phận bếp: kế hoạch sản xuất đã được duyệt, vào xác nhận và bắt đầu làm. */
+    private function notifyKitchen(Carbon $date, int $count): void
+    {
+        $this->notify->toKitchen(
+            'Kế hoạch sản xuất đã được duyệt',
+            "Kế hoạch ngày {$date->format('d/m/Y')} ({$count} kế hoạch) đã được Quản lý duyệt. Hãy xác nhận và bắt đầu sản xuất.",
+            route('admin.production.index', ['date' => $date->toDateString()], false),
+            'fa-calendar-check',
+            'emerald',
+            'plan_approved'
+        );
     }
 }

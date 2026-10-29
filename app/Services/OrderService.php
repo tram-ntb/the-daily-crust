@@ -88,6 +88,8 @@ class OrderService
                 'payment_method' => $opts['payment_method'],
                 'delivery_method' => $delivery,
                 'delivery_address' => $delivery === 'Delivery_2km' ? ($opts['delivery_address'] ?? null) : null,
+                // Đơn online có giờ dự kiến thực tế (luôn sau lúc đặt tối thiểu vài phút, xem DeliveryEstimator); POS thì bán tại quầy
+                'estimated_delivery_at' => $isPos ? null : (new DeliveryEstimator)->estimate($now, $delivery, array_sum($items)),
                 'prepared_at' => $isPos ? $now : null,
                 'completed_at' => $isPos ? $now : null,
                 'created_by' => $user->user_id,

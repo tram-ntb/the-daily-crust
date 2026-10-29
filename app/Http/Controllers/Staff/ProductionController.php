@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Staff;
 use App\Http\Controllers\Controller;
 use App\Models\ProductionBatch;
 use App\Models\ProductionPlan;
+use App\Services\NotifyService;
 use App\Services\ProductionService;
 use Carbon\Carbon;
 use Illuminate\Http\RedirectResponse;
@@ -22,9 +23,10 @@ class ProductionController extends Controller
     /** Các vị trí được ghi nhận mẻ bánh. */
     private const KITCHEN_POSITIONS = ['Thợ làm bánh chính', 'Nhân viên phụ làm bánh', 'Thợ trang trí bánh'];
 
-    public function __construct(private readonly ProductionService $production)
-    {
-    }
+    public function __construct(
+        private readonly ProductionService $production,
+        private readonly NotifyService $notify,
+    ) {}
 
     public function index(Request $request): View
     {
@@ -134,6 +136,17 @@ class ProductionController extends Controller
         } catch (ValidationException $e) {
             return back()->withErrors($e->errors())->withInput();
         }
+
+        // Báo Quản lý: bếp vừa ghi nhận một mẻ
+        $plan->loadMissing('product');
+        $this->notify->toManagers(
+            "Đã ghi nhận mẻ #{$batch->batch_id}",
+            ($plan->product->vi_name ?? 'Sản phẩm')." · {$batch->passed_qty} đạt, {$batch->failed_qty} lỗi · ".($request->user()->full_name ?? $request->user()->username),
+            route('admin.batches.index', [], false),
+            'fa-fire-burner',
+            (int) $batch->failed_qty > 0 ? 'amber' : 'emerald',
+            'batch_recorded'
+        );
 
         return redirect()->route('admin.production.index', ['date' => $plan->plan_date->toDateString()])
             ->with('success', "Đã ghi nhận mẻ #{$batch->batch_id}: {$batch->passed_qty} đạt, {$batch->failed_qty} lỗi. Đã trừ nguyên liệu và nhập kho thành phẩm.");

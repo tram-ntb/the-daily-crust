@@ -1,13 +1,17 @@
 <?php
 
+use App\Http\Controllers\AccountController;
 use App\Http\Controllers\Admin\BomController;
+use App\Http\Controllers\Admin\CustomerAccountController;
 use App\Http\Controllers\Admin\ForecastController;
 use App\Http\Controllers\Admin\ProductionPlanController;
+use App\Http\Controllers\Admin\StaffAccountController;
 use App\Http\Controllers\AdminDashboardController;
 use App\Http\Controllers\Auth\LoginController;
 use App\Http\Controllers\Customer\CartController;
 use App\Http\Controllers\Customer\OnlineOrderController;
 use App\Http\Controllers\DashboardController;
+use App\Http\Controllers\NotificationController;
 use App\Http\Controllers\ProductDetailController;
 use App\Http\Controllers\Staff\BatchController;
 use App\Http\Controllers\Staff\CatalogController;
@@ -15,8 +19,8 @@ use App\Http\Controllers\Staff\ExpiryController;
 use App\Http\Controllers\Staff\PosController;
 use App\Http\Controllers\Staff\ProductionController;
 use App\Http\Controllers\Staff\StocktakeController;
-use App\Http\Controllers\Staff\WorklistController;
 use App\Http\Controllers\Staff\WasteController;
+use App\Http\Controllers\Staff\WorklistController;
 use App\Http\Middleware\CheckRole;
 use Illuminate\Support\Facades\Route;
 
@@ -33,6 +37,18 @@ Route::post('/logout', [LoginController::class, 'destroy'])->name('logout');
 
 // Trang chi tiết sản phẩm: CÔNG KHAI (khách vãng lai cũng xem được), chỉ liệt kê tên nguyên liệu, không định lượng
 Route::get('/products/{product}', [ProductDetailController::class, 'show'])->whereNumber('product')->name('products.show');
+
+// TÀI KHOẢN + THÔNG BÁO: mọi người dùng đã đăng nhập (Customer, Staff, Manager), chỉ thao tác trên dữ liệu của chính mình
+Route::middleware('auth')->group(function () {
+    Route::get('/account', [AccountController::class, 'show'])->name('account.show');
+    Route::put('/account', [AccountController::class, 'update'])->name('account.update');
+    Route::put('/account/password', [AccountController::class, 'updatePassword'])->name('account.password');
+
+    Route::get('/notifications', [NotificationController::class, 'index'])->name('notifications.index');
+    Route::get('/notifications/feed', [NotificationController::class, 'feed'])->name('notifications.feed');
+    Route::post('/notifications/read-all', [NotificationController::class, 'readAll'])->name('notifications.readAll');
+    Route::post('/notifications/{id}/read', [NotificationController::class, 'read'])->name('notifications.read');
+});
 
 // 2. GIỎ HÀNG (lưu trong CSDL theo tài khoản) + ĐẶT HÀNG ONLINE (chỉ khách hàng đã đăng nhập)
 Route::middleware(['auth', CheckRole::class.':customer'])->group(function () {
@@ -124,6 +140,15 @@ Route::middleware(['auth', CheckRole::class.':manager,staff'])
             Route::post('stocktake/{stocktake}/approve', [StocktakeController::class, 'approve'])->name('stocktake.approve');
             Route::post('stocktake/{stocktake}/reject', [StocktakeController::class, 'reject'])->name('stocktake.reject');
             // Route::get('reports/revenue', ...)->name('reports.revenue');
-            // Route::get('staff', ...)->name('staff.index');
+
+            // Quản lý tài khoản nhân viên (tạo / sửa / khóa) và xem tài khoản khách hàng (chỉ đọc)
+            Route::get('staff', [StaffAccountController::class, 'index'])->name('staff.index');
+            Route::get('staff/create', [StaffAccountController::class, 'create'])->name('staff.create');
+            Route::post('staff', [StaffAccountController::class, 'store'])->name('staff.store');
+            Route::get('staff/{user}/edit', [StaffAccountController::class, 'edit'])->whereNumber('user')->name('staff.edit');
+            Route::put('staff/{user}', [StaffAccountController::class, 'update'])->whereNumber('user')->name('staff.update');
+            Route::post('staff/{user}/toggle', [StaffAccountController::class, 'toggle'])->whereNumber('user')->name('staff.toggle');
+            Route::get('customers', [CustomerAccountController::class, 'index'])->name('customers.index');
+            Route::get('customers/{user}', [CustomerAccountController::class, 'show'])->whereNumber('user')->name('customers.show');
         });
     });

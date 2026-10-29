@@ -11,11 +11,15 @@ use Illuminate\Support\Collection;
 class Order extends BakeryModel
 {
     public const CHANNEL_POS = 'POS';
+
     public const CHANNEL_APP = 'App';
 
     public const STATUS_NEW = 'New';
+
     public const STATUS_PREPARING = 'Preparing';
+
     public const STATUS_READY = 'Ready';
+
     public const STATUS_COMPLETED = 'Completed';
 
     /** Luồng trạng thái cho phép của đơn online: trạng thái hiện tại => trạng thái kế tiếp. */
@@ -35,6 +39,7 @@ class Order extends BakeryModel
             'order_datetime' => 'datetime',
             'prepared_at' => 'datetime',
             'completed_at' => 'datetime',
+            'estimated_delivery_at' => 'datetime',
             'total_amount' => 'integer',
         ];
     }
@@ -85,5 +90,36 @@ class Order extends BakeryModel
     public function isOnline(): bool
     {
         return $this->order_channel === self::CHANNEL_APP;
+    }
+
+    /** Giao tận nơi (khác với khách tự đến lấy tại tiệm). */
+    public function isDelivery(): bool
+    {
+        return $this->delivery_method === 'Delivery_2km';
+    }
+
+    /** Tên trạng thái dành cho KHÁCH HÀNG (trạng thái "Ready" hiểu khác nhau theo cách nhận hàng). */
+    public function customerStatusLabel(): string
+    {
+        return match ($this->status) {
+            self::STATUS_NEW => 'Đã gửi, chờ tiệm nhận',
+            self::STATUS_PREPARING => 'Tiệm đang đóng gói',
+            self::STATUS_READY => $this->isDelivery() ? 'Đang trên đường giao' : 'Đã chuẩn bị xong, mời bạn đến nhận',
+            self::STATUS_COMPLETED => 'Hoàn tất',
+            default => (string) $this->status,
+        };
+    }
+
+    /** "Dự kiến giao lúc 13:25" / "Dự kiến sẵn sàng lúc 13:15"; null với đơn POS và đơn cũ chưa có giờ dự kiến. */
+    public function etaLabel(): ?string
+    {
+        if (! $this->isOnline() || ! $this->estimated_delivery_at) {
+            return null;
+        }
+
+        $at = $this->estimated_delivery_at;
+        $time = $at->format('H:i').($at->isToday() ? '' : ' '.$at->format('d/m'));
+
+        return ($this->isDelivery() ? 'Dự kiến giao lúc ' : 'Dự kiến sẵn sàng lúc ').$time;
     }
 }

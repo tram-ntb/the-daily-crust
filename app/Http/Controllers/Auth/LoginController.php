@@ -6,6 +6,7 @@ use App\Models\User; // Import Model User vào Controller
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\Hash;
 use Illuminate\Validation\ValidationException;
 use Illuminate\View\View;
 
@@ -14,11 +15,7 @@ class LoginController
     public function create(Request $request): View|RedirectResponse
     {
         if ($request->user()) {
-            $route = in_array($request->user()->role, ['manager', 'staff'], true)
-                ? 'admin.dashboard'
-                : 'home';
-
-            return redirect()->route($route);
+            return redirect()->route('dashboard');
         }
 
         return view('auth.login');
@@ -35,6 +32,7 @@ class LoginController
         $attempt = [
             'username' => $login,
             'password' => $credentials['password'],
+            'is_active' => true,   // tài khoản bị Quản lý khóa thì không đăng nhập được
         ];
 
         if (Auth::attempt($attempt, $request->boolean('remember'))) {
@@ -48,6 +46,14 @@ class LoginController
             }
 
             return redirect()->intended(route('home'));
+        }
+
+        // Đúng mật khẩu nhưng tài khoản đang bị khóa: báo rõ lý do (chỉ khi mật khẩu đúng, tránh lộ thông tin)
+        $locked = User::where('username', $login)->where('is_active', false)->first();
+        if ($locked && Hash::check($credentials['password'], (string) $locked->password)) {
+            throw ValidationException::withMessages([
+                'login' => 'Tài khoản đã bị khóa. Vui lòng liên hệ quản lý cửa hàng.',
+            ]);
         }
 
         throw ValidationException::withMessages([

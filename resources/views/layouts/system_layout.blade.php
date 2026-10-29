@@ -3,6 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="csrf-token" content="{{ csrf_token() }}">
     <title>@yield('title', 'The Daily Crust - Artisan Bakery')</title>
     
     <script src="https://cdn.tailwindcss.com"></script>
@@ -30,7 +31,7 @@
     <link rel="stylesheet" href="https://cdn.datatables.net/1.13.6/css/jquery.dataTables.min.css">
     <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.x.x/dist/cdn.min.js"></script>
 
-    <style> body { font-family: 'Times New Roman', Times, serif; } </style>
+    <style> body { font-family: 'Times New Roman', Times, serif; } [x-cloak] { display: none !important; } </style>
     @stack('styles')
 </head>
 <body class="bg-stone-50 antialiased min-h-screen flex flex-col" x-data="{ sidebarOpen: true, profileDropdown: false, filterDropdown: false, groupDropdown: false, favDropdown: false }">
@@ -142,6 +143,7 @@
                         {!! $navLink('admin.reports.revenue', 'fa-file-waveform', 'Báo cáo & Thống kê doanh thu') !!}
                         {!! $navHeading('Hệ thống') !!}
                         {!! $navLink('admin.staff.index', 'fa-users-gear', 'Quản lý tài khoản nhân viên') !!}
+                        {!! $navLink('admin.customers.index', 'fa-address-book', 'Tài khoản khách hàng') !!}
                     @endif
                 @endif
 
@@ -178,42 +180,16 @@
                             <a href="{{ route('login') }}" class="bg-amber-700 hover:bg-amber-800 text-white font-bold text-sm px-4 py-2 rounded-lg shadow-xs transition">Đăng ký</a>
                         </div>
                     @else
-                        <button class="relative text-stone-600 hover:text-stone-900 focus:outline-none">
-                            <i class="fa-regular fa-bell text-xl"></i>
-                            <span class="absolute -top-1 -right-1 bg-red-500 text-white text-[10px] w-4 h-4 rounded-full flex items-center justify-center font-bold">2</span>
-                        </button>
-
-                        <div class="relative" @click.outside="profileDropdown = false">
-                            <button @click="profileDropdown = !profileDropdown" class="flex items-center space-x-3 focus:outline-none">
-                                <div class="w-10 h-10 rounded-full bg-mint-100 border border-mint-300 flex items-center justify-center text-mint-800 font-bold uppercase">
-                                    {{ substr(Auth::user()->username ?? 'U', 0, 1) }}
-                                </div>
-                                <div class="text-left hidden sm:block">
-                                    <p class="text-base font-bold text-stone-900 leading-tight">{{ Auth::user()->username }}</p>
-                                    <p class="text-xs text-stone-500">{{ Auth::user()->position ?? 'Thành viên' }}</p>
-                                </div>
-                                <i class="fa-solid fa-chevron-down text-xs text-stone-400"></i>
-                            </button>
-
-                            <div x-show="profileDropdown" x-transition class="absolute right-0 mt-2 w-52 bg-white border border-stone-200 rounded-lg shadow-lg py-1 z-50">
-                                <a href="#" class="block px-4 py-2 text-sm text-stone-700 hover:bg-stone-100"><i class="fa-solid fa-user mr-2"></i> Tài khoản</a>
-                                <a href="{{ \Illuminate\Support\Facades\Route::has('orders.mine') ? route('orders.mine') : '#' }}" class="block px-4 py-2 text-sm text-stone-700 hover:bg-stone-100"><i class="fa-solid fa-box-archive mr-2"></i> Đơn hàng của tôi</a>
-                                <div class="border-t border-stone-100 my-1"></div>
-                                <form action="{{ route('logout') }}" method="POST">
-                                    @csrf
-                                    <button type="submit" class="w-full text-left block px-4 py-2 text-sm text-red-600 hover:bg-stone-100">
-                                        <i class="fa-solid fa-right-from-bracket mr-2"></i> Đăng xuất
-                                    </button>
-                                </form>
-                            </div>
-                        </div>
+                        @include('partials.notification-bell')
+                        @include('partials.user-menu')
                     @endguest
                 </div>
             </header>
 
             <!-- NỘI DUNG CHÍNH (Chỉ hiển thị công cụ mua sắm khi là khách hàng) -->
             <main class="flex-1 p-6 bg-stone-50">
-                @if($role == 'customer')
+                @php $hideShopBar = trim($__env->yieldContent('hide_shop_bar')) !== ''; @endphp
+                @if($role == 'customer' && ! $hideShopBar)
                     <form action="{{ url('/') }}" method="GET" class="flex flex-col lg:flex-row items-center justify-between mb-6 gap-4">
                         <div class="relative w-full lg:w-80 flex items-center space-x-2">
                             <div class="relative flex-1">
@@ -227,13 +203,13 @@
                             <!-- Bộ lọc & Yêu thích giữ nguyên như cũ -->
                             <div class="relative" @click.outside="filterDropdown = false">
                                 <button type="button" @click="filterDropdown = !filterDropdown" class="px-4 py-2 bg-white border border-stone-300 rounded-lg text-base font-medium text-stone-700 hover:bg-stone-100 shadow-xs flex items-center space-x-2">
-                                    <i class="fa-solid fa-filter text-stone-500"></i><span>Lọc theo giá</span>
+                                    <i class="fa-solid fa-filter text-stone-500"></i><span>Lọc</span>
                                 </button>
                                 <div x-show="filterDropdown" class="absolute right-0 mt-2 w-72 bg-white border border-stone-200 rounded-xl shadow-xl p-4 z-30 text-sm">
                                     <div class="font-bold text-stone-800 mb-1 flex items-center justify-between"><span>Khoảng giá</span><span class="text-[11px] text-stone-400 font-normal">(Đơn vị: nghìn đồng)</span></div>
                                     <div class="flex items-center space-x-2 mb-3">
-                                        <input type="number" name="price_from" value="{{ request('price_from') }}" placeholder="Từ" class="w-1/2 px-2.5 py-1.5 border border-stone-300 rounded-lg text-sm">
-                                        <input type="number" name="price_to" value="{{ request('price_to') }}" placeholder="Đến" class="w-1/2 px-2.5 py-1.5 border border-stone-300 rounded-lg text-sm">
+                                        <input type="number" name="price_from" value="{{ request('price_from') }}" placeholder="Từ (vd: 17)" class="w-1/2 px-2.5 py-1.5 border border-stone-300 rounded-lg text-sm">
+                                        <input type="number" name="price_to" value="{{ request('price_to') }}" placeholder="Đến (vd: 35)" class="w-1/2 px-2.5 py-1.5 border border-stone-300 rounded-lg text-sm">
                                     </div>
                                     <button type="submit" class="w-full py-2 bg-mint-700 text-white rounded-lg text-xs font-bold shadow-xs hover:bg-mint-800 transition mb-3">Áp dụng lọc giá</button>
                                 </div>
