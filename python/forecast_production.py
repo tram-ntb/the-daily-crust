@@ -25,6 +25,12 @@ import argparse
 import os
 import sys
 from datetime import date, datetime, timedelta
+
+# Chạy từ web server (php artisan serve / Apache) có thể không có SystemRoot: khi đó `import asyncio` (joblib/scikit-learn)
+# lỗi "WinError 10106". Đặt lại trước khi import bất kỳ thư viện nặng nào.
+if sys.platform == "win32":
+    os.environ.setdefault("SYSTEMROOT", os.environ.get("WINDIR") or r"C:\Windows")
+    os.environ.setdefault("WINDIR", os.environ["SYSTEMROOT"])
 from urllib.parse import unquote, urlparse
 
 import numpy as np

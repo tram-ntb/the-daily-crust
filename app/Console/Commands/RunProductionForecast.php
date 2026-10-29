@@ -2,6 +2,7 @@
 
 namespace App\Console\Commands;
 
+use App\Support\PythonEnvironment;
 use Illuminate\Console\Command;
 use Symfony\Component\Console\Output\OutputInterface;
 use Symfony\Component\Process\Exception\ProcessTimedOutException;
@@ -37,7 +38,11 @@ class RunProductionForecast extends Command
             return self::FAILURE;
         }
 
-        $cmd = [(string) config('forecast.python'), $script, '--env-file', base_path('.env'), '--model', (string) $this->option('model'),
+        // Đường dẫn python.exe tuyệt đối + môi trường đầy đủ: chạy từ web giống hệt chạy tay trong terminal
+        $python = PythonEnvironment::executable((string) config('forecast.python'));
+        $this->line("Python: {$python}");
+
+        $cmd = [$python, $script, '--env-file', base_path('.env'), '--model', (string) $this->option('model'),
             '--feature-set', (string) $this->option('feature-set')];
 
         foreach (['as-of', 'buffer', 'commercial-categories', 'bom-decides-categories', 'horizon'] as $name) {
@@ -56,7 +61,7 @@ class RunProductionForecast extends Command
             $cmd[] = '--dry-run';
         }
 
-        $process = new Process($cmd, base_path(), ['PYTHONIOENCODING' => 'utf-8']);
+        $process = new Process($cmd, base_path(), PythonEnvironment::environment($python));
         $process->setTimeout((float) config('forecast.timeout'));
 
         try {
@@ -68,7 +73,7 @@ class RunProductionForecast extends Command
             return self::FAILURE;
         } catch (\Throwable $e) {
             $this->error('Không chạy được Python: '.$e->getMessage());
-            $this->line('Kiểm tra FORECAST_PYTHON trong .env (ví dụ "python" hoặc "py") và đã cài: pip install pandas numpy scikit-learn pymysql');
+            $this->line('Kiểm tra FORECAST_PYTHON trong .env: nên là đường dẫn đầy đủ tới python.exe (dùng dấu / cho dễ), và đã cài: pip install pandas numpy scikit-learn pymysql');
 
             return self::FAILURE;
         }

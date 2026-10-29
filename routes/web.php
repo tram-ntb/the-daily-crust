@@ -123,6 +123,7 @@ Route::middleware(['auth', CheckRole::class.':manager,staff'])
         Route::middleware(CheckRole::class.':manager')->group(function () {
             Route::get('forecast', [ForecastController::class, 'index'])->name('forecast.index');
             Route::post('forecast/run', [ForecastController::class, 'run'])->name('forecast.run');
+            Route::get('forecast/diagnose', [ForecastController::class, 'diagnose'])->name('forecast.diagnose');
             // Route::get('purchase', ...)->name('purchase.index');
             // Route::get('purchase/create', ...)->name('purchase.create');
 
