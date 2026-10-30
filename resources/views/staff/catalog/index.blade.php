@@ -67,13 +67,23 @@
         @endif
     </div>
 
+    @if ($tab === 'products' && isset($expired) && $expired['qty'] > 0)
+        <div class="flex flex-wrap items-center gap-x-3 gap-y-1 rounded-lg border border-red-200 bg-red-50 px-4 py-2.5 text-sm text-red-900">
+            <i class="fa-solid fa-triangle-exclamation"></i>
+            <span><b>{{ number_format($expired['qty']) }} cái</b> của {{ $expired['products'] }} sản phẩm đã <b>hết hạn dùng</b>: không tính vào tồn bán được, khách và POS không mua được.</span>
+            @if (\Illuminate\Support\Facades\Route::has('admin.expiry.index'))
+                <a href="{{ route('admin.expiry.index') }}" class="ml-auto font-semibold underline">Xử lý ở Hàng cận date &amp; Phiếu hủy</a>
+            @endif
+        </div>
+    @endif
+
     <div class="overflow-x-auto rounded-xl border border-stone-200 bg-white shadow-sm">
         <table class="w-full text-sm">
             <thead class="bg-[#d8e8d2] text-left text-xs font-bold uppercase tracking-wider text-mint-900">
             @if ($tab === 'ingredients')
                 <tr><th class="px-4 py-3">Nguyên liệu</th><th class="px-4 py-3">Nhóm</th><th class="px-4 py-3 text-right">Tồn kho</th><th class="px-4 py-3 text-right">Tối thiểu</th><th class="px-4 py-3">Mức tồn</th><th class="px-4 py-3 text-right">Giá vốn / đơn vị</th></tr>
             @elseif ($tab === 'products')
-                <tr><th class="px-4 py-3">Sản phẩm</th><th class="px-4 py-3">Nhóm</th><th class="px-4 py-3 text-right">Tồn (các lô còn hạn)</th><th class="px-4 py-3">Hạn gần nhất</th><th class="px-4 py-3">Mức tồn</th><th class="px-4 py-3 text-right">Giá bán</th></tr>
+                <tr><th class="px-4 py-3">Sản phẩm</th><th class="px-4 py-3">Nhóm</th><th class="px-4 py-3 text-right">Tồn bán được (lô còn hạn)</th><th class="px-4 py-3">Hạn gần nhất</th><th class="px-4 py-3">Mức tồn</th><th class="px-4 py-3 text-right">Giá bán</th></tr>
             @else
                 <tr><th class="px-4 py-3">Mã</th><th class="px-4 py-3">Công ty</th><th class="px-4 py-3">Liên hệ</th><th class="px-4 py-3">Điện thoại</th><th class="px-4 py-3">Giao hàng</th><th class="px-4 py-3">Trạng thái</th></tr>
             @endif
@@ -95,7 +105,12 @@
                     <tr class="{{ $rowTint[$lv] }}">
                         <td class="px-4 py-2.5 font-medium text-stone-800">{{ $it->vi_name }}</td>
                         <td class="px-4 py-2.5 text-stone-500">{{ $it->category }}</td>
-                        <td class="px-4 py-2.5 text-right font-bold {{ $lv === 'critical' ? 'text-red-700' : ($lv === 'low' ? 'text-amber-700' : 'text-stone-800') }}">{{ number_format((int) $it->stock_qty) }} <span class="text-xs font-normal text-stone-400">cái</span></td>
+                        <td class="px-4 py-2.5 text-right font-bold {{ $lv === 'critical' ? 'text-red-700' : ($lv === 'low' ? 'text-amber-700' : 'text-stone-800') }}">
+                            {{ number_format((int) $it->stock_qty) }} <span class="text-xs font-normal text-stone-400">cái</span>
+                            @if ((int) $it->expired_qty > 0)
+                                <a href="{{ \Illuminate\Support\Facades\Route::has('admin.expiry.index') ? route('admin.expiry.index') : '#' }}" class="mt-0.5 block text-[11px] font-semibold text-red-700 hover:underline" title="Lô đã hết hạn dùng, không bán được. Bấm để lập phiếu hủy.">+ {{ number_format((int) $it->expired_qty) }} cái hết hạn</a>
+                            @endif
+                        </td>
                         <td class="px-4 py-2.5 text-stone-500">{{ $it->nearest_expiry ? \Illuminate\Support\Carbon::parse($it->nearest_expiry)->format('H:i d/m/Y') : '—' }}</td>
                         <td class="px-4 py-2.5"><span class="rounded-full border px-2.5 py-0.5 text-xs font-semibold {{ $badge[$lv][0] }}">{{ $lv === 'critical' ? 'Hết hàng' : ($lv === 'low' ? 'Sắp hết (≤ '.$productLow.')' : 'Đủ hàng') }}</span></td>
                         <td class="px-4 py-2.5 text-right text-stone-500">{{ number_format($it->price) }}đ</td>

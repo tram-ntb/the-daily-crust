@@ -31,7 +31,15 @@
     <link rel="stylesheet" href="https://cdn.datatables.net/1.13.6/css/jquery.dataTables.min.css">
     <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.x.x/dist/cdn.min.js"></script>
 
-    <style> body { font-family: 'Times New Roman', Times, serif; } [x-cloak] { display: none !important; } </style>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Be+Vietnam+Pro:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+    <style>
+        /* Phông sans-serif hiện đại, hỗ trợ tốt tiếng Việt (có phương án dự phòng khi mất mạng) */
+        body { font-family: 'Be Vietnam Pro', system-ui, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif; font-feature-settings: 'tnum' 0; }
+        [x-cloak] { display: none !important; }
+        .tnum { font-variant-numeric: tabular-nums; }
+    </style>
     @stack('styles')
 </head>
 <body class="bg-stone-50 antialiased min-h-screen flex flex-col" x-data="{ sidebarOpen: true, profileDropdown: false, filterDropdown: false, groupDropdown: false, favDropdown: false }">

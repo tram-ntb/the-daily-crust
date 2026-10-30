@@ -26,7 +26,8 @@ class ProductionController extends Controller
     public function __construct(
         private readonly ProductionService $production,
         private readonly NotifyService $notify,
-    ) {}
+    ) {
+    }
 
     public function index(Request $request): View
     {
@@ -75,6 +76,39 @@ class ProductionController extends Controller
         }
 
         return back()->with('success', 'Đã xác nhận kế hoạch sản xuất. Có thể bắt đầu ghi nhận mẻ bánh.');
+    }
+
+    /** Xác nhận hàng loạt: mọi kế hoạch đã duyệt nhưng chưa nhận của ngày đang xem. */
+    public function acknowledgeAll(Request $request): RedirectResponse
+    {
+        abort_unless(in_array($request->user()->position, self::ACKNOWLEDGE_POSITIONS, true), 403, 'Chỉ thợ làm bánh chính được xác nhận kế hoạch.');
+
+        $date = Carbon::parse($request->validate(['date' => ['required', 'date']])['date']);
+
+        $plans = ProductionPlan::query()->with('product')
+            ->whereHas('product', fn ($q) => $q->batchable())
+            ->whereDate('plan_date', $date)
+            ->get()
+            ->filter(fn (ProductionPlan $p) => $p->isApproved() && ! $p->isAcknowledged());
+
+        $ok = 0;
+        $failed = [];
+        foreach ($plans as $plan) {
+            try {
+                $this->production->acknowledge($plan, $request->user());
+                $ok++;
+            } catch (ValidationException $e) {
+                $failed[] = ($plan->product->vi_name ?? '#'.$plan->product_id).': '.collect($e->errors())->flatten()->first();
+            }
+        }
+
+        if ($ok === 0 && $failed === []) {
+            return back()->withErrors(['plan' => 'Không có kế hoạch nào cần xác nhận.']);
+        }
+
+        $back = back()->with('success', "Đã xác nhận {$ok} kế hoạch sản xuất. Có thể bắt đầu ghi nhận mẻ bánh.");
+
+        return $failed ? $back->withErrors(['plan' => 'Không xác nhận được: '.implode('; ', $failed)]) : $back;
     }
 
     public function create(Request $request, ProductionPlan $plan): View|RedirectResponse

@@ -32,9 +32,14 @@
             </label>
             <label class="block">
                 <span class="text-sm font-semibold text-stone-700">Giờ bắt đầu (tùy chọn)</span>
-                <input type="time" name="start_time" value="{{ old('start_time') }}"
-                       class="mt-1 w-full rounded-lg border border-stone-300 px-3 py-2 focus:border-mint-700 focus:outline-none">
-                <span class="text-xs text-stone-400">Giờ kết thúc = lúc lưu</span>
+                <div class="relative mt-1">
+                    <i class="fa-regular fa-clock pointer-events-none absolute left-3 top-1/2 z-10 -translate-y-1/2 text-stone-400"></i>
+                    <input type="text" id="startTime" name="start_time" value="{{ old('start_time') }}" placeholder="--:--" readonly>
+                </div>
+                <div class="mt-1 flex items-center justify-between text-xs text-stone-400">
+                    <span>Giờ kết thúc = lúc lưu</span>
+                    <span class="space-x-2"><button type="button" onclick="window.startTimePicker.setDate(new Date(), true)" class="font-semibold text-mint-700 hover:underline">Bây giờ</button><button type="button" onclick="window.startTimePicker.clear()" class="hover:underline">Xóa</button></span>
+                </div>
             </label>
         </div>
 
@@ -111,6 +116,16 @@
 @endsection
 
 @push('scripts')
+<script src="https://cdn.jsdelivr.net/npm/flatpickr@4.6.13/dist/flatpickr.min.js"></script>
+<script>
+    // Bộ chọn giờ 24h (không AM/PM), đồng bộ giao diện với lịch chọn ngày
+    window.startTimePicker = flatpickr('#startTime', {
+        enableTime: true, noCalendar: true, dateFormat: 'H:i', time_24hr: true, minuteIncrement: 5,
+        defaultDate: document.getElementById('startTime').value || null, disableMobile: true,
+        // class áp dụng cho ô hiển thị
+        onReady: (s, d, inst) => { inst.input.className = 'w-full cursor-pointer rounded-lg border border-stone-300 bg-white py-2 pl-9 pr-3 text-sm font-semibold text-stone-800 focus:border-mint-700 focus:outline-none'; },
+    });
+</script>
 <script>
     function batchForm(cfg) {
         let seq = 0;
@@ -143,5 +158,6 @@
 @endpush
 
 @push('styles')
-<style>[x-cloak]{display:none !important}</style>
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/flatpickr@4.6.13/dist/flatpickr.min.css">
+<style>[x-cloak]{display:none !important} .flatpickr-time input:hover,.flatpickr-time .flatpickr-am-pm:hover{background:#eef4ec}</style>
 @endpush

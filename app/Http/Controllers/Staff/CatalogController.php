@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Staff;
 use App\Http\Controllers\Controller;
 use App\Models\Ingredient;
 use App\Models\Product;
+use App\Models\ProductLot;
 use App\Models\Supplier;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\Request;
@@ -48,8 +49,11 @@ class CatalogController extends Controller
         $q = trim((string) $request->input('q'));
 
         $items = Product::query()
-            ->withSum(['lots as stock_qty' => fn (Builder $b) => $b->available()], 'remaining_qty')
-            ->withMin(['lots as nearest_expiry' => fn (Builder $b) => $b->available()], 'expiry_date')
+            // Tồn BÁN ĐƯỢC = lô còn hàng VÀ chưa hết hạn (cùng điều kiện với trang khách, POS, giỏ hàng và OrderService)
+            ->withSum(['lots as stock_qty' => fn (Builder $b) => $b->sellable()], 'remaining_qty')
+            ->withMin(['lots as nearest_expiry' => fn (Builder $b) => $b->sellable()], 'expiry_date')
+            // Lô còn hàng nhưng ĐÃ HẾT HẠN: không bán được, chờ lập phiếu hủy
+            ->withSum(['lots as expired_qty' => fn (Builder $b) => $b->available()->whereNotNull('expiry_date')->where('expiry_date', '<=', now())], 'remaining_qty')
             ->when($q !== '', fn (Builder $b) => $b->where(fn (Builder $w) => $w->where('vi_name', 'like', "%{$q}%")->orWhere('item', 'like', "%{$q}%")))
             ->when($request->filled('category'), fn (Builder $b) => $b->where('category', $request->input('category')))
             ->orderBy('category')->orderBy('vi_name')
@@ -67,6 +71,10 @@ class CatalogController extends Controller
                 'critical' => $items->where('stock_level', 'critical')->count(),
                 'low' => $items->where('stock_level', 'low')->count(),
                 'total' => $items->count(),
+            ],
+            'expired' => [
+                'products' => $items->filter(fn (Product $p) => (int) ($p->expired_qty ?? 0) > 0)->count(),
+                'qty' => (int) $items->sum(fn (Product $p) => (int) ($p->expired_qty ?? 0)),
             ],
             'categories' => Product::query()->distinct()->orderBy('category')->pluck('category'),
             'filters' => ['q' => $q, 'level' => null, 'category' => $request->input('category')],

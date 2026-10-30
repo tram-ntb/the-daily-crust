@@ -19,8 +19,8 @@ use App\Http\Controllers\Staff\ExpiryController;
 use App\Http\Controllers\Staff\PosController;
 use App\Http\Controllers\Staff\ProductionController;
 use App\Http\Controllers\Staff\StocktakeController;
-use App\Http\Controllers\Staff\WasteController;
 use App\Http\Controllers\Staff\WorklistController;
+use App\Http\Controllers\Staff\WasteController;
 use App\Http\Middleware\CheckRole;
 use Illuminate\Support\Facades\Route;
 
@@ -97,6 +97,7 @@ Route::middleware(['auth', CheckRole::class.':manager,staff'])
 
         // Các thao tác GHI (thay đổi kho): CHỈ STAFF, chặn ở route chứ không chỉ ẩn nút.
         Route::middleware(CheckRole::class.':staff')->group(function () {
+            Route::post('production/acknowledge-all', [ProductionController::class, 'acknowledgeAll'])->name('production.acknowledge-all');
             Route::post('production/{plan}/acknowledge', [ProductionController::class, 'acknowledge'])->name('production.acknowledge');
             Route::get('production/{plan}/batches/create', [ProductionController::class, 'create'])->name('production.batches.create');
             Route::post('production/{plan}/batches', [ProductionController::class, 'store'])->name('production.batches.store');
@@ -123,7 +124,6 @@ Route::middleware(['auth', CheckRole::class.':manager,staff'])
         Route::middleware(CheckRole::class.':manager')->group(function () {
             Route::get('forecast', [ForecastController::class, 'index'])->name('forecast.index');
             Route::post('forecast/run', [ForecastController::class, 'run'])->name('forecast.run');
-            Route::get('forecast/diagnose', [ForecastController::class, 'diagnose'])->name('forecast.diagnose');
             // Route::get('purchase', ...)->name('purchase.index');
             // Route::get('purchase/create', ...)->name('purchase.create');
 
