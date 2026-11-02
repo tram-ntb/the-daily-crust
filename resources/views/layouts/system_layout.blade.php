@@ -39,6 +39,22 @@
         body { font-family: 'Be Vietnam Pro', system-ui, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif; font-feature-settings: 'tnum' 0; }
         [x-cloak] { display: none !important; }
         .tnum { font-variant-numeric: tabular-nums; }
+
+        /* ===== Bảng dữ liệu: tiêu đề cột và nhãn trạng thái KHÔNG bị rớt dòng; bảng quá rộng sẽ cuộn ngang ===== */
+        table thead th { white-space: nowrap; }
+        table td span[class*="rounded-full"],
+        table td span[class*="rounded-md"] { white-space: nowrap; }
+        /* Nhãn trạng thái dạng chữ nhật bo góc, đồng bộ với các nút thao tác (thay cho viên thuốc bo tròn) */
+        table td span[class*="rounded-full"] { border-radius: 0.375rem; padding-top: 0.25rem; padding-bottom: 0.25rem; display: inline-flex; align-items: center; gap: 0.25rem; }
+
+        /* ===== Thanh cuộn menu trái: mảnh, ẩn khi không rê chuột, vẫn cuộn mượt ===== */
+        .sidebar-scroll { scrollbar-width: thin; scrollbar-color: transparent transparent; overscroll-behavior: contain; scroll-behavior: smooth; }
+        .sidebar-scroll:hover { scrollbar-color: rgba(63, 107, 58, .35) transparent; }
+        .sidebar-scroll::-webkit-scrollbar { width: 4px; }
+        .sidebar-scroll::-webkit-scrollbar-track { background: transparent; }
+        .sidebar-scroll::-webkit-scrollbar-thumb { background: transparent; border-radius: 9999px; }
+        .sidebar-scroll:hover::-webkit-scrollbar-thumb { background: rgba(63, 107, 58, .35); }
+        .sidebar-scroll::-webkit-scrollbar-thumb:hover { background: rgba(63, 107, 58, .6); }
     </style>
     @stack('styles')
 </head>
@@ -65,7 +81,7 @@
                 </button>
             </div>
 
-            <nav class="flex-1 py-4 px-3 space-y-1 text-base font-medium overflow-y-auto">
+            <nav class="sidebar-scroll flex-1 py-4 px-3 space-y-1 text-base font-medium overflow-y-auto">
                 
                 @php
                     $role = Auth::user()->role ?? 'customer';
@@ -127,7 +143,7 @@
                         {!! $navHeading('Kho & Sản xuất') !!}
                         {!! $navLink('admin.products.stock', 'fa-boxes-stacked', 'Sản phẩm & Tồn kho') !!}
                         {!! $navLink('admin.ingredients.index', 'fa-cubes', 'Quản lý Nguyên liệu') !!}
-                        {!! $navLink('admin.stocktake.index', 'fa-clipboard-check', 'Kiểm kê kho') !!}
+                        {!! $navLink('admin.stocktake.index', 'fa-clipboard-check', 'Kiểm kê kho (Stocktake)') !!}
                         {!! $navLink('admin.waste.index', 'fa-triangle-exclamation', 'Tiêu hủy hàng hỏng') !!}
                         {!! $navLink('admin.production.index', 'fa-industry', 'Sản xuất hôm nay') !!}
                         {!! $navLink('admin.batches.index', 'fa-fire-burner', 'Theo dõi mẻ nướng') !!}
@@ -136,7 +152,7 @@
                     @else
                         {!! $navLink('admin.dashboard', 'fa-chart-pie', 'Dashboard') !!}
                         {!! $navHeading('Dự báo & Sản xuất') !!}
-                        {!! $navLink('admin.forecast.index', 'fa-chart-line', 'Dự báo nhu cầu') !!}
+                        {!! $navLink('admin.forecast.index', 'fa-chart-line', 'Dự báo nhu cầu (ML)') !!}
                         {!! $navLink('admin.plans.index', 'fa-calendar-check', 'Lập kế hoạch sản xuất') !!}
                         {!! $navLink('admin.production.index', 'fa-industry', 'Tiến độ sản xuất') !!}
                         {!! $navLink('admin.batches.index', 'fa-fire-burner', 'Theo dõi mẻ nướng') !!}
@@ -261,27 +277,25 @@
                 @yield('content')
             </main>
 
-            @if (request()->routeIs('home', 'dashboard', 'admin.dashboard'))
-                <footer class="bg-gradient-to-r from-mint-900 to-mint-800 text-stone-300 pt-10 pb-6 px-8 text-sm shadow-inner">
-                    <div class="max-w-7xl mx-auto grid grid-cols-1 md:grid-cols-2 gap-8 mb-8 items-center">
-                        <div class="flex items-center space-x-4">
-                            <img src="{{ asset('images/logo.png') }}" alt="Logo" class="w-14 h-14 rounded-full bg-white p-1 object-contain shadow">
-                            <div>
-                                <span class="font-bold text-white text-lg tracking-wide block">The Daily Crust</span>
-                                <span class="text-xs text-stone-400">Hệ thống quản lý chuỗi tiệm bánh tươi & Dự báo nhu cầu</span>
-                            </div>
-                        </div>
-                        <div class="flex flex-col space-y-2 md:items-end font-medium">
-                            <a href="#" class="hover:text-white transition">Liên hệ</a>
-                            <a href="#" class="hover:text-white transition">Về chúng tôi</a>
-                            <a href="#" class="hover:text-white transition">Chính sách bảo mật</a>
+            <footer class="bg-gradient-to-r from-mint-900 to-mint-800 text-stone-300 pt-10 pb-6 px-8 text-sm shadow-inner">
+                <div class="max-w-7xl mx-auto grid grid-cols-1 md:grid-cols-2 gap-8 mb-8 items-center">
+                    <div class="flex items-center space-x-4">
+                        <img src="{{ asset('images/logo.png') }}" alt="Logo" class="w-14 h-14 rounded-full bg-white p-1 object-contain shadow">
+                        <div>
+                            <span class="font-bold text-white text-lg tracking-wide block">The Daily Crust</span>
+                            <span class="text-xs text-stone-400">Hệ thống quản lý chuỗi tiệm bánh tươi & Dự báo nhu cầu</span>
                         </div>
                     </div>
-                    <div class="max-w-7xl mx-auto border-t border-mint-700/60 pt-4 text-center text-xs text-stone-400">
-                        Copyright © 2026 The Daily Crust. All rights reserved.
+                    <div class="flex flex-col space-y-2 md:items-end font-medium">
+                        <a href="#" class="hover:text-white transition">Liên hệ (Contact)</a>
+                        <a href="#" class="hover:text-white transition">Về chúng tôi (About Us)</a>
+                        <a href="#" class="hover:text-white transition">Chính sách bảo mật (Privacy)</a>
                     </div>
-                </footer>
-            @endif
+                </div>
+                <div class="max-w-7xl mx-auto border-t border-mint-700/60 pt-4 text-center text-xs text-stone-400">
+                    Copyright © 2026 The Daily Crust. All rights reserved.
+                </div>
+            </footer>
         </div>
     </div>
 

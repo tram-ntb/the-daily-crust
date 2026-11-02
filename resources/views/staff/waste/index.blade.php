@@ -90,23 +90,31 @@
         <div class="overflow-x-auto">
             <table class="w-full text-sm">
                 <thead class="bg-[#d8e8d2] text-left text-xs font-bold uppercase tracking-wider text-mint-900">
-                    <tr><th class="px-4 py-3">Phiếu</th><th class="px-4 py-3">Ngày</th><th class="px-4 py-3">Mặt hàng</th><th class="px-4 py-3 text-right">Số lượng</th><th class="px-4 py-3">Lý do</th><th class="px-4 py-3 text-right">Giá trị</th><th class="px-4 py-3">Người lập</th><th class="px-4 py-3">Duyệt</th></tr>
+                    <tr><th class="whitespace-nowrap px-4 py-3">Phiếu</th><th class="whitespace-nowrap px-4 py-3">Ngày</th><th class="whitespace-nowrap px-4 py-3">Mặt hàng</th><th class="whitespace-nowrap px-4 py-3 text-right">Số lượng</th><th class="whitespace-nowrap px-4 py-3">Lý do</th><th class="whitespace-nowrap px-4 py-3 text-right">Giá trị</th><th class="whitespace-nowrap px-4 py-3">Người lập</th><th class="whitespace-nowrap px-4 py-3">Duyệt</th></tr>
                 </thead>
                 <tbody class="divide-y divide-stone-100">
                     @forelse ($tickets as $t)
                         <tr>
                             <td class="px-4 py-2 font-mono text-xs">#{{ $t->ticket_id }}</td>
-                            <td class="px-4 py-2 text-stone-600">{{ $t->ticket_date?->format('H:i d/m/Y') }}</td>
+                            <td class="whitespace-nowrap px-4 py-2 text-stone-600">{{ $t->ticket_date?->format('H:i d/m/Y') }}</td>
                             <td class="px-4 py-2 font-medium">{{ $t->itemName() }}</td>
-                            <td class="px-4 py-2 text-right">{{ number_format($t->quantity) }} {{ $t->unit }}</td>
+                            <td class="whitespace-nowrap px-4 py-2 text-right tnum">{{ number_format($t->quantity) }} {{ $t->unit }}</td>
                             <td class="px-4 py-2 text-stone-600">{{ $t->reason_type }}</td>
-                            <td class="px-4 py-2 text-right font-semibold text-red-700">{{ number_format($t->total_cost) }}đ</td>
-                            <td class="px-4 py-2 text-stone-600">{{ $t->user->full_name ?? '—' }}</td>
-                            <td class="px-4 py-2">
-                                <span class="rounded-full px-2.5 py-0.5 text-xs font-semibold {{ $t->approved_by ? 'bg-emerald-100 text-emerald-800' : 'bg-amber-100 text-amber-800' }}">{{ $t->approved_by ? 'Đã duyệt' : 'Chờ duyệt' }}</span>
-                                @if ($canApprove && ! $t->approved_by)
-                                    <form method="POST" action="{{ route('admin.waste.approve', $t) }}" class="mt-1">@csrf<button class="text-xs font-semibold text-mint-700 hover:underline">Duyệt</button></form>
-                                @endif
+                            <td class="whitespace-nowrap px-4 py-2 text-right font-semibold tnum text-red-700">{{ number_format($t->total_cost) }}đ</td>
+                            <td class="whitespace-nowrap px-4 py-2 text-stone-600">{{ $t->user->full_name ?? '—' }}</td>
+                            <td class="whitespace-nowrap px-4 py-2">
+                                <div class="flex items-center gap-2">
+                                    @if ($t->approved_by)
+                                        <span class="inline-flex items-center gap-1 rounded-md border border-emerald-200 bg-emerald-50 px-2.5 py-1 text-xs font-semibold text-emerald-800"><i class="fa-solid fa-circle-check text-[10px]"></i>Đã duyệt</span>
+                                    @else
+                                        <span class="inline-flex items-center gap-1 rounded-md border border-amber-200 bg-amber-50 px-2.5 py-1 text-xs font-semibold text-amber-800"><i class="fa-regular fa-clock text-[10px]"></i>Chờ duyệt</span>
+                                        @if ($canApprove)
+                                            <form method="POST" action="{{ route('admin.waste.approve', $t) }}">@csrf
+                                                <button class="inline-flex items-center gap-1 rounded-md bg-mint-700 px-3 py-1 text-xs font-semibold text-white shadow-sm transition hover:bg-mint-800"><i class="fa-solid fa-check text-[10px]"></i>Duyệt</button>
+                                            </form>
+                                        @endif
+                                    @endif
+                                </div>
                             </td>
                         </tr>
                     @empty
