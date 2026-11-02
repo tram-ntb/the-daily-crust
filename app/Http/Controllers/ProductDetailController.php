@@ -27,7 +27,7 @@ class ProductDetailController extends Controller
             ->sort(SORT_NATURAL | SORT_FLAG_CASE)
             ->values();
 
-        $stock = (int) ProductLot::sellable()->where('product_id', $product->product_id)->sum('remaining_qty');
+        $stock = (int) (app(\App\Services\StockService::class)->availability([$product->product_id])[$product->product_id] ?? 0);
 
         $related = Product::query()
             ->where('product_id', '!=', $product->product_id)

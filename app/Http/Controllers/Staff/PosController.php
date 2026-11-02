@@ -20,18 +20,20 @@ class PosController extends Controller
 
     public function index(): View
     {
-        $products = Product::query()
+        $list = Product::query()
             ->where(fn (Builder $q) => $q->whereNull('status')->orWhere('status', 'Active'))
-            ->withSum(['lots as stock_qty' => fn (Builder $q) => $q->sellable()], 'remaining_qty')
             ->orderBy('category')->orderBy('vi_name')
-            ->get()
+            ->get();
+        $stock = app(\App\Services\StockService::class)->availability($list->pluck('product_id')->all());
+
+        $products = $list
             ->map(fn (Product $p) => [
                 'id' => $p->product_id,
                 'name' => $p->vi_name,
                 'sub' => $p->item,
                 'price' => (int) $p->price,
                 'category' => $p->category ?? 'Khác',
-                'stock' => (int) ($p->stock_qty ?? 0),
+                'stock' => (int) ($stock[$p->product_id] ?? 0),
                 // Chỉ trả URL ảnh khi file thật sự tồn tại, nếu không giao diện hiện biểu tượng thay thế
                 'image' => $p->image_url && file_exists(public_path($p->image_url)) ? asset($p->image_url) : null,
             ])->values();

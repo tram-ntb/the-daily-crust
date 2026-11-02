@@ -5,7 +5,6 @@ namespace App\Http\Controllers\Customer;
 use App\Http\Controllers\Controller;
 use App\Models\Order;
 use App\Services\CartService;
-use App\Services\NotifyService;
 use App\Services\OrderService;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -19,8 +18,8 @@ class OnlineOrderController extends Controller
     public function __construct(
         private readonly OrderService $orders,
         private readonly CartService $cart,
-        private readonly NotifyService $notify,
-    ) {}
+    ) {
+    }
 
     public function store(Request $request): RedirectResponse
     {
@@ -54,14 +53,8 @@ class OnlineOrderController extends Controller
 
         $this->cart->clear($request->user());   // đặt thành công mới xóa giỏ
 
-        // Đơn đã ghi nhận + đã có bản ghi thanh toán: gửi thông báo xác nhận cho khách (và báo nhân viên có đơn mới).
-        // Lỗi gửi thông báo / email không làm hỏng đơn (xem NotifyService).
-        $this->notify->orderPlaced($order);
-
-        $eta = $order->etaLabel();
-
         return redirect()->route('orders.mine')
-            ->with('success', "Đặt hàng thành công! Mã đơn #{$order->order_id}. Tiệm đang chuẩn bị cho bạn.".($eta ? " {$eta}." : ''))
+            ->with('success', "Đặt hàng thành công! Mã đơn #{$order->order_id}. Tiệm đang chuẩn bị cho bạn.")
             ->with('clear_cart', true);   // vẫn xóa khóa LocalStorage cũ (nếu còn)
     }
 
@@ -69,7 +62,7 @@ class OnlineOrderController extends Controller
     public function mine(Request $request): View
     {
         $orders = Order::query()
-            ->with(['details.product', 'payment'])
+            ->with('details.product')
             ->where('created_by', $request->user()->user_id)
             ->where('order_channel', Order::CHANNEL_APP)
             ->orderByDesc('order_datetime')

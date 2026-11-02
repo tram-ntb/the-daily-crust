@@ -19,19 +19,14 @@ class CartService
 {
     public const MAX_QTY = 99;
 
-    /** Tồn kho BÁN ĐƯỢC (lô còn hàng và chưa hết hạn) của các sản phẩm: [product_id => số lượng]. */
+    /** Tồn kho BÁN ĐƯỢC (theo lô còn hạn, hoặc theo nguyên liệu với đồ uống pha theo đơn) của các sản phẩm: [product_id => số lượng]. */
     public function stockFor(array $productIds): array
     {
         if ($productIds === []) {
             return [];
         }
 
-        return ProductLot::sellable()
-            ->whereIn('product_id', $productIds)
-            ->get(['product_id', 'remaining_qty'])
-            ->groupBy('product_id')
-            ->map(fn ($lots) => (int) $lots->sum('remaining_qty'))
-            ->all();
+        return app(StockService::class)->availability($productIds);
     }
 
     /**

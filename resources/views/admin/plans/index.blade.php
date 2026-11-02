@@ -1,7 +1,7 @@
 @extends('layouts.system_layout')
- 
+
 @section('title', 'Lập kế hoạch sản xuất - The Daily Crust')
- 
+
 @section('content')
 <div x-data="planBoard(@js([
         'rows' => $rows,
@@ -11,7 +11,7 @@
         'unapproveUrl' => route('admin.plans.unapprove', '__ID__'),
     ]))"
      class="space-y-5">
- 
+
     {{-- Tiêu đề + chọn ngày --}}
     <div class="flex flex-wrap items-end justify-between gap-4">
         <div>
@@ -31,9 +31,9 @@
             </div>
         </form>
     </div>
- 
+
     @include('staff.partials.flash')
- 
+
     {{-- Nguồn dự báo --}}
     @if ($meta)
         <div class="flex flex-wrap items-center gap-x-4 gap-y-1 rounded-lg border border-emerald-200 bg-emerald-50 px-4 py-2.5 text-sm text-emerald-900">
@@ -52,18 +52,18 @@
             @endif
         </div>
     @endif
- 
+
     @if ($isPast)
         <div class="rounded-lg border border-stone-200 bg-stone-100 px-4 py-2.5 text-sm text-stone-600"><i class="fa-solid fa-lock mr-1"></i>Ngày đã qua: chỉ xem, không sửa được kế hoạch.</div>
     @endif
- 
+
     <div class="grid grid-cols-1 gap-5 2xl:grid-cols-[minmax(0,1fr)_22rem]">
         {{-- ============ BẢNG KẾ HOẠCH ============ --}}
         <div class="min-w-0 space-y-3">
             <form id="planForm" method="POST" action="{{ route('admin.plans.store') }}" class="space-y-3">
                 @csrf
                 <input type="hidden" name="date" value="{{ $date->toDateString() }}">
- 
+
                 {{-- Thanh công cụ --}}
                 <div class="flex flex-wrap items-center gap-2" x-show="!locked">
                     <button type="button" @click="fillForecast()" class="inline-flex items-center gap-1.5 rounded-lg border border-mint-700 bg-white px-3 py-1.5 text-xs font-semibold text-mint-800 transition hover:bg-[#eef4ec]"><i class="fa-solid fa-wand-magic-sparkles"></i>Điền theo dự báo</button>
@@ -74,14 +74,14 @@
                         <span>Tổng: <b class="tnum text-base text-mint-800" x-text="totalQty.toLocaleString('vi-VN')"></b> sản phẩm</span>
                     </div>
                 </div>
- 
+
                 {{-- Cảnh báo thiếu nguyên liệu (xem chi tiết ở bảng nguyên liệu bên dưới) --}}
                 <div x-show="shortages.length > 0" x-cloak class="flex flex-wrap items-center gap-2 rounded-lg border border-red-200 bg-red-50 px-4 py-2.5 text-sm text-red-800">
                     <i class="fa-solid fa-circle-exclamation"></i>
                     <span>Thiếu <b x-text="shortages.length"></b> loại nguyên liệu (<span x-text="shortages.slice(0, 3).map(s => s.name).join(', ') + (shortages.length > 3 ? '...' : '')"></span>). Bếp sẽ không ghi được mẻ nếu không bổ sung tồn kho.</span>
                     <a href="#needsPanel" class="ml-auto font-semibold underline">Xem chi tiết</a>
                 </div>
- 
+
                 <div class="overflow-hidden rounded-xl border border-stone-200 bg-white shadow-sm">
                     <div class="overflow-x-auto">
                         <table class="w-full border-collapse text-sm">
@@ -95,7 +95,7 @@
                                     <th class="whitespace-nowrap px-4 py-3">Trạng thái</th>
                                 </tr>
                             </thead>
- 
+
                             {{-- Mỗi nhóm hàng là một <tbody>: tiêu đề nhóm + các sản phẩm của nhóm --}}
                             <template x-for="g in groups" :key="g.category">
                                 <tbody class="border-b border-stone-100 last:border-0">
@@ -167,7 +167,7 @@
                         </table>
                     </div>
                 </div>
- 
+
                 <div class="flex flex-wrap items-center justify-between gap-3" x-show="!locked">
                     <p class="text-xs text-stone-500">Sản lượng 0 hoặc để trống = không sản xuất (xóa kế hoạch nháp nếu có). Kế hoạch bếp đã nhận hoặc đã có mẻ bị khóa.</p>
                     <div class="flex gap-2">
@@ -177,17 +177,17 @@
                 </div>
                 <p x-show="!locked && missingReason" x-cloak class="text-right text-xs font-semibold text-amber-700">Sản lượng khác dự báo: hãy nhập lý do điều chỉnh ở các dòng được đánh dấu.</p>
             </form>
- 
+
             {{-- Form dùng chung cho nút Duyệt / Thu hồi từng dòng (không lồng trong form chính) --}}
             <form id="rowActionForm" method="POST" class="hidden">@csrf</form>
         </div>
- 
+
         {{-- ============ NGUYÊN LIỆU CẦN THEO BOM ============ --}}
         <aside id="needsPanel" class="min-w-0">
             <div class="rounded-xl border border-stone-200 bg-white p-4 shadow-sm 2xl:sticky 2xl:top-24">
                 <h2 class="font-bold text-mint-900"><i class="fa-solid fa-cubes mr-1.5 text-mint-700"></i>Nguyên liệu cần (theo BOM)</h2>
                 <p class="mb-3 text-xs text-stone-500">Tính tức thời từ sản lượng đang nhập, so với tồn kho hiện tại.</p>
- 
+
                 <div x-show="needs.length === 0" class="py-6 text-center text-sm text-stone-400">Nhập sản lượng để xem nguyên liệu cần dùng.</div>
                 <div x-show="needs.length > 0" class="max-h-[60vh] overflow-y-auto rounded-lg border border-stone-100">
                     <table class="w-full text-xs">
@@ -208,14 +208,14 @@
     </div>
 </div>
 @endsection
- 
+
 @push('styles')
 <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/flatpickr@4.6.13/dist/flatpickr.min.css">
 <style>
     .flatpickr-day.selected { background: #3f6b3a; border-color: #3f6b3a; }
 </style>
 @endpush
- 
+
 @push('scripts')
 <script src="https://cdn.jsdelivr.net/npm/flatpickr@4.6.13/dist/flatpickr.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/flatpickr@4.6.13/dist/l10n/vn.js"></script>
@@ -227,13 +227,13 @@
         locale: Object.assign({}, (window.flatpickr && flatpickr.l10ns && flatpickr.l10ns.vn) || {}, { firstDayOfWeek: 1 }),
         onChange: (sel, str) => { if (str) document.getElementById('planDateForm').submit(); },
     });
- 
+
     function planBoard(cfg) {
         // r.input: ô nhập; ban đầu lấy từ kế hoạch đã có (nếu có)
         const rows = cfg.rows.map(r => ({ ...r, input: r.qty ?? '', why: (r.reason && r.status === 'Adjusted_Manual') ? r.reason : '' }));
         return {
             rows, stock: cfg.stock, locked: cfg.locked,
- 
+
             statusText(s) {
                 return { Original: 'Theo dự báo', Adjusted_Manual: 'Đã điều chỉnh', Adjusted_Shortage: 'Hạ do thiếu nguyên liệu', Manual: 'Lập thủ công' }[s] || s;
             },
@@ -246,7 +246,7 @@
             },
             qtyOf(r) { return r.locked || this.locked ? Number(r.qty || 0) : Number(r.input || 0); },
             needsReason(r) { return !r.locked && r.forecast !== null && Number(r.input || 0) > 0 && Number(r.input) !== r.forecast; },
- 
+
             // Gom theo nhóm hàng (giữ thứ tự xuất hiện)
             get groups() {
                 const m = new Map();
@@ -257,7 +257,7 @@
             get totalQty() { return this.rows.reduce((s, r) => s + this.qtyOf(r), 0); },
             get missingReason() { return this.rows.some(r => this.needsReason(r) && !String(r.why || '').trim()); },
             get canSubmit() { return !this.missingReason; },
- 
+
             get needs() {
                 const map = {};
                 this.rows.forEach(r => {
@@ -275,11 +275,11 @@
                 }).sort((a, b) => (b.short > 0) - (a.short > 0) || a.name.localeCompare(b.name, 'vi'));
             },
             get shortages() { return this.needs.filter(n => n.short > 0); },
- 
+
             fillForecast() { this.rows.forEach(r => { if (!r.locked && r.has_bom && r.forecast !== null) r.input = r.forecast; }); },
             fillSuggested() { this.rows.forEach(r => { if (!r.locked && r.has_bom && r.suggested !== null) { r.input = r.suggested; if (r.suggested !== r.forecast) r.why = 'Đã trừ tồn thành phẩm còn hạn chuyển sang'; } }); },
             clearAll() { this.rows.forEach(r => { if (!r.locked) { r.input = ''; r.why = ''; } }); },
- 
+
             rowAction(kind, id) {
                 const f = document.getElementById('rowActionForm');
                 f.action = (kind === 'approve' ? cfg.approveUrl : cfg.unapproveUrl).replace('__ID__', id);

@@ -28,11 +28,10 @@ class ExpiryController extends Controller
         $all = $this->expiry->lots();
         $state = (string) $request->input('state', 'attention');   // attention = quá hạn + cận date
 
-        $lots = match ($state) {
-            ExpiryService::STATE_EXPIRED, ExpiryService::STATE_NEAR, ExpiryService::STATE_OK => $all->where('state', $state),
-            'all' => $all,
-            default => $all->whereIn('state', [ExpiryService::STATE_EXPIRED, ExpiryService::STATE_NEAR]),
-        };
+        if (! in_array($state, ['attention', ExpiryService::STATE_EXPIRED, ExpiryService::STATE_NEAR, ExpiryService::STATE_OK, 'all'], true)) {
+            $state = 'attention';
+        }
+        $lots = $all;   // gửi đủ mọi lô; việc lọc theo nhóm do trình duyệt (Alpine.js) làm nên không cần tải lại trang
 
         $by = fn (string $s) => $all->where('state', $s);
 

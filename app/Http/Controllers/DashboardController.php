@@ -48,11 +48,7 @@ class DashboardController extends Controller
 
         // Tồn kho BÁN ĐƯỢC (lô còn hàng, chưa hết hạn) của các sản phẩm trong trang này,
         // để thẻ sản phẩm hiện "Hết hàng" và chặn nút thêm vào giỏ ngay từ đầu.
-        $stock = ProductLot::sellable()
-            ->whereIn('product_id', $products->pluck('product_id')->all())
-            ->get(['product_id', 'remaining_qty'])
-            ->groupBy('product_id')
-            ->map(fn ($lots) => (int) $lots->sum('remaining_qty'));
+        $stock = app(\App\Services\StockService::class)->availability($products->pluck('product_id')->all());
 
         $products->getCollection()->each(function ($p) use ($stock) {
             $p->stock = (int) ($stock[$p->product_id] ?? 0);

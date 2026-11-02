@@ -17,7 +17,7 @@
         return $h <= 0 ? 'Quá hạn '.$txt : 'Còn '.$txt;
     };
 @endphp
-<div class="space-y-5">
+<div class="space-y-5" x-data="expiryFilter(@js($state))">
     <div class="flex flex-wrap items-end justify-between gap-3">
         <div>
             <h1 class="text-2xl font-bold text-mint-900"><i class="fa-solid fa-hourglass-half mr-2 text-mint-700"></i>Hàng cận date &amp; tồn đọng</h1>
@@ -38,23 +38,26 @@
     <div class="grid grid-cols-1 gap-3 sm:grid-cols-3">
         @foreach (['expired' => 'Quá hạn - phải hủy', 'near' => 'Cận date - ưu tiên bán / xử lý', 'ok' => 'Còn tốt'] as $key => $label)
             @php $sum = $summary[$key]; $st = $stateStyle[$key]; @endphp
-            <div class="rounded-xl border p-4 shadow-sm {{ $key === 'expired' && $sum['lots'] ? 'border-red-200 bg-red-50' : ($key === 'near' && $sum['lots'] ? 'border-amber-200 bg-amber-50' : 'border-stone-200 bg-white') }}">
+            <a href="{{ route('admin.expiry.index', ['state' => $key]) }}#expiry-table" @click.prevent="jump('{{ $key }}')"
+               class="block cursor-pointer rounded-xl border p-4 shadow-sm transition hover:shadow-md {{ $key === 'expired' && $sum['lots'] ? 'border-red-200 bg-red-50' : ($key === 'near' && $sum['lots'] ? 'border-amber-200 bg-amber-50' : 'border-stone-200 bg-white') }}"
+               :class="filter === '{{ $key }}' ? 'ring-2 ring-mint-700/50' : ''">
                 <p class="text-xs font-bold uppercase tracking-wider text-stone-500">{{ $label }}</p>
                 <p class="mt-1 text-2xl font-extrabold text-stone-800">{{ number_format($sum['qty']) }} <span class="text-sm font-semibold text-stone-500">sản phẩm · {{ $sum['lots'] }} lô</span></p>
                 <p class="text-xs text-stone-500">Giá vốn: {{ number_format($sum['value']) }} đ</p>
-            </div>
+            </a>
         @endforeach
     </div>
 
     {{-- Tab lọc --}}
     <div class="flex flex-wrap gap-2 border-b border-stone-200">
         @foreach ($tabs as $key => $label)
-            <a href="{{ route('admin.expiry.index', ['state' => $key]) }}"
-               class="-mb-px border-b-2 px-4 py-2.5 text-sm font-semibold {{ $state === $key ? 'border-mint-700 text-mint-800' : 'border-transparent text-stone-500 hover:text-mint-700' }}">{{ $label }}</a>
+            <a href="{{ route('admin.expiry.index', ['state' => $key]) }}#expiry-table" @click.prevent="jump('{{ $key }}', false)"
+               class="-mb-px border-b-2 px-4 py-2.5 text-sm font-semibold"
+               :class="filter === '{{ $key }}' ? 'border-mint-700 text-mint-800' : 'border-transparent text-stone-500 hover:text-mint-700'">{{ $label }}</a>
         @endforeach
     </div>
 
-    <div class="overflow-hidden rounded-xl border border-stone-200 bg-white shadow-sm">
+    <div id="expiry-table" class="scroll-mt-24 overflow-hidden rounded-xl border border-stone-200 bg-white shadow-sm">
         <div class="overflow-x-auto">
             <table class="w-full text-sm">
                 <thead class="bg-[#d8e8d2] text-left text-xs font-bold uppercase tracking-wider text-mint-900">
@@ -66,9 +69,9 @@
                     </tr>
                 </thead>
                 <tbody class="divide-y divide-stone-100">
-                    @forelse ($lots as $row)
+                    @foreach ($lots as $row)
                         @php $lot = $row['lot']; $st = $stateStyle[$row['state']]; @endphp
-                        <tr class="{{ $row['state'] === 'expired' ? 'bg-red-50/50' : ($row['state'] === 'near' ? 'bg-amber-50/50' : '') }}">
+                        <tr data-state="{{ $row['state'] }}" x-show="visible($el.dataset.state)" class="{{ $row['state'] === 'expired' ? 'bg-red-50/50' : ($row['state'] === 'near' ? 'bg-amber-50/50' : '') }}">
                             <td class="px-4 py-2.5">
                                 <span class="block font-bold text-stone-900">{{ $lot->product->vi_name ?? 'SP #'.$lot->product_id }}</span>
                                 <span class="font-mono text-xs text-stone-400">Lô #{{ $lot->lot_id }} · SX {{ $lot->production_date?->format('H:i d/m') }}</span>
@@ -100,11 +103,10 @@
                                 </td>
                             @endif
                         </tr>
-                    @empty
-                        <tr><td colspan="{{ $canWrite ? 7 : 6 }}" class="px-4 py-10 text-center text-stone-400">
-                            <i class="fa-solid fa-circle-check mb-2 text-2xl text-emerald-500"></i><br>Không có lô nào trong nhóm này.
-                        </td></tr>
-                    @endforelse
+                    @endforeach
+                    <tr x-show="!hasRows()" x-cloak><td colspan="{{ $canWrite ? 7 : 6 }}" class="px-4 py-10 text-center text-stone-400">
+                        <i class="fa-solid fa-circle-check mb-2 text-2xl text-emerald-500"></i><br>Không có lô nào trong nhóm này.
+                    </td></tr>
                 </tbody>
             </table>
         </div>
@@ -113,3 +115,24 @@
     <p class="text-xs text-stone-400">Ghi chú: lô quá hạn đã bị khóa khỏi POS/đặt hàng online. Cột "Dự báo SX" giúp cân nhắc giảm sản lượng ngày kế tiếp khi hàng tồn đọng nhiều. Nguyên liệu thô trong kho không có hạn dùng nên không nằm trong trang này.</p>
 </div>
 @endsection
+
+@push('scripts')
+<script>
+    function expiryFilter(initial) {
+        const counts = @js(collect($lots)->countBy('state'));
+        return {
+            filter: initial,
+            visible(state) {
+                return this.filter === 'all' || this.filter === state || (this.filter === 'attention' && (state === 'expired' || state === 'near'));
+            },
+            hasRows() { return ['expired', 'near', 'ok'].some(s => (counts[s] || 0) > 0 && this.visible(s)); },
+            // Lọc bảng ngay (không tải lại trang) rồi cuộn mượt tới bảng
+            jump(f, scroll = true) {
+                this.filter = f;
+                try { const u = new URL(location.href); u.searchParams.set('state', f); history.replaceState(null, '', u); } catch (e) {}
+                if (scroll) this.$nextTick(() => document.getElementById('expiry-table')?.scrollIntoView({ behavior: 'smooth', block: 'start' }));
+            },
+        };
+    }
+</script>
+@endpush

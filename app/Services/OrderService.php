@@ -3,6 +3,8 @@
 namespace App\Services;
 
 use App\Models\DeliveryOrder;
+use App\Models\Ingredient;
+use App\Models\IngredientStockTransaction;
 use App\Models\Order;
 use App\Models\OrderDetail;
 use App\Models\OrderDetailLot;
@@ -32,6 +34,10 @@ class OrderService
      * @param  array<int, array{product_id:int|string, qty:int|string}>  $items
      * @param  array{channel:string, payment_method:string, delivery_method?:string, delivery_address?:?string, note?:?string, cash_received?:int|float|null}  $opts
      */
+    public function __construct(private readonly StockService $stocks = new StockService())
+    {
+    }
+
     public function place(array $items, array $opts, User $user): Order
     {
         $items = $this->mergeItems($items);
@@ -46,11 +52,23 @@ class OrderService
             // 1) Kiểm tra sản phẩm + gom lô bán được (khóa dòng để hai thu ngân không bán trùng một lô)
             $total = 0;
             $plan = [];       // product_id => [price, lots(Collection)]
+            $madeToOrder = [];   // product_id => price (đồ uống pha theo đơn: trừ nguyên liệu, không qua lô)
+            $ingNeed = [];       // ingredient_id => số lượng cần (cộng dồn cả giỏ)
             $errors = [];
             foreach ($items as $pid => $qty) {
                 $product = $products[$pid] ?? null;
                 if (! $product || ($product->status !== null && $product->status !== 'Active')) {
                     $errors[] = "Sản phẩm #{$pid} không còn được bán.";
+
+                    continue;
+                }
+
+                if ($this->stocks->usesIngredients($product)) {
+                    $madeToOrder[$pid] = (int) $product->price;
+                    foreach ($product->boms as $bom) {
+                        $ingNeed[$bom->ingredient_id] = ($ingNeed[$bom->ingredient_id] ?? 0) + (float) $bom->quantity_required * $qty;
+                    }
+                    $total += (int) $product->price * $qty;
 
                     continue;
                 }
@@ -67,6 +85,18 @@ class OrderService
 
                 $plan[$pid] = ['price' => (int) $product->price, 'lots' => $lots];
                 $total += (int) $product->price * $qty;
+            }
+
+            // 1b) Đồ uống pha theo đơn: kiểm tra tồn nguyên liệu (khóa dòng) theo tổng nhu cầu của cả giỏ
+            $ingredients = $ingNeed ? Ingredient::whereIn('ingredient_id', array_keys($ingNeed))->lockForUpdate()->get()->keyBy('ingredient_id') : collect();
+            $ingTake = [];
+            foreach ($ingNeed as $iid => $need) {
+                $take = (int) ceil(round($need, 4));
+                $ingTake[$iid] = $take;
+                $ing = $ingredients[$iid] ?? null;
+                if (! $ing || (int) $ing->stock_quantity < $take) {
+                    $errors[] = 'Không đủ nguyên liệu để pha đồ uống ('.($ing->ingredient_name ?? "NL #{$iid}").').';
+                }
             }
             if ($errors) {
                 throw ValidationException::withMessages(['cart' => $errors]);
@@ -89,7 +119,7 @@ class OrderService
                 'delivery_method' => $delivery,
                 'delivery_address' => $delivery === 'Delivery_2km' ? ($opts['delivery_address'] ?? null) : null,
                 // Đơn online có giờ dự kiến thực tế (luôn sau lúc đặt tối thiểu vài phút, xem DeliveryEstimator); POS thì bán tại quầy
-                'estimated_delivery_at' => $isPos ? null : (new DeliveryEstimator)->estimate($now, $delivery, array_sum($items)),
+                'estimated_delivery_at' => $isPos ? null : (new DeliveryEstimator())->estimate($now, $delivery, array_sum($items)),
                 'prepared_at' => $isPos ? $now : null,
                 'completed_at' => $isPos ? $now : null,
                 'created_by' => $user->user_id,
@@ -127,6 +157,24 @@ class OrderService
                     $left--;
                     $lot->remaining_qty--;          // cập nhật bản sao trong bộ nhớ để vòng sau tính đúng
                 }
+            }
+
+            // 3b) Đồ uống pha theo đơn: dòng chi tiết (không gắn lô) + trừ nguyên liệu theo BOM + sổ xuất kho nguyên liệu
+            foreach ($madeToOrder as $pid => $price) {
+                for ($i = 0; $i < $items[$pid]; $i++) {
+                    OrderDetail::create(['order_id' => $order->order_id, 'product_id' => $pid, 'price' => $price, 'quantity' => 1]);
+                }
+            }
+            foreach ($ingTake as $iid => $take) {
+                if ($take <= 0) {
+                    continue;
+                }
+                Ingredient::where('ingredient_id', $iid)->decrement('stock_quantity', $take);
+                IngredientStockTransaction::create([
+                    'ingredient_id' => $iid, 'transaction_type' => 'Export', 'quantity' => $take,
+                    'unit' => $ingredients[$iid]->unit, 'reference_type' => 'Order', 'reference_id' => $order->order_id,
+                    'transaction_date' => $now, 'user_id' => $user->user_id,
+                ]);
             }
 
             // 4) Trừ tồn các lô + sổ kho

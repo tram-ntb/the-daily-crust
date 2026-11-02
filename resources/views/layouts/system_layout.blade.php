@@ -127,7 +127,7 @@
                         {!! $navHeading('Kho & Sản xuất') !!}
                         {!! $navLink('admin.products.stock', 'fa-boxes-stacked', 'Sản phẩm & Tồn kho') !!}
                         {!! $navLink('admin.ingredients.index', 'fa-cubes', 'Quản lý Nguyên liệu') !!}
-                        {!! $navLink('admin.stocktake.index', 'fa-clipboard-check', 'Kiểm kê kho (Stocktake)') !!}
+                        {!! $navLink('admin.stocktake.index', 'fa-clipboard-check', 'Kiểm kê kho') !!}
                         {!! $navLink('admin.waste.index', 'fa-triangle-exclamation', 'Tiêu hủy hàng hỏng') !!}
                         {!! $navLink('admin.production.index', 'fa-industry', 'Sản xuất hôm nay') !!}
                         {!! $navLink('admin.batches.index', 'fa-fire-burner', 'Theo dõi mẻ nướng') !!}
@@ -136,7 +136,7 @@
                     @else
                         {!! $navLink('admin.dashboard', 'fa-chart-pie', 'Dashboard') !!}
                         {!! $navHeading('Dự báo & Sản xuất') !!}
-                        {!! $navLink('admin.forecast.index', 'fa-chart-line', 'Dự báo nhu cầu (ML)') !!}
+                        {!! $navLink('admin.forecast.index', 'fa-chart-line', 'Dự báo nhu cầu') !!}
                         {!! $navLink('admin.plans.index', 'fa-calendar-check', 'Lập kế hoạch sản xuất') !!}
                         {!! $navLink('admin.production.index', 'fa-industry', 'Tiến độ sản xuất') !!}
                         {!! $navLink('admin.batches.index', 'fa-fire-burner', 'Theo dõi mẻ nướng') !!}
