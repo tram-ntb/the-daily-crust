@@ -12,6 +12,8 @@ use App\Http\Controllers\Customer\CartController;
 use App\Http\Controllers\Customer\OnlineOrderController;
 use App\Http\Controllers\DashboardController;
 use App\Http\Controllers\NotificationController;
+use App\Http\Controllers\Admin\PurchaseController;
+use App\Http\Controllers\Admin\ReportController;
 use App\Http\Controllers\ProductDetailController;
 use App\Http\Controllers\Staff\BatchController;
 use App\Http\Controllers\Staff\CatalogController;
@@ -118,14 +120,18 @@ Route::middleware(['auth', CheckRole::class.':manager,staff'])
         });
 
         // Các chức năng khác (làm dần, tên route khớp với sidebar/lối tắt):
-        // Route::get('shift-report', ...)->name('shift-report');
+        Route::get('shift-report', [ReportController::class, 'shift'])->name('shift-report');
 
         // CHỈ MANAGER: chặn ở route, không chỉ ẩn nút trên giao diện
         Route::middleware(CheckRole::class.':manager')->group(function () {
             Route::get('forecast', [ForecastController::class, 'index'])->name('forecast.index');
             Route::post('forecast/run', [ForecastController::class, 'run'])->name('forecast.run');
-            // Route::get('purchase', ...)->name('purchase.index');
-            // Route::get('purchase/create', ...)->name('purchase.create');
+            // Mua nguyên liệu: gợi ý thiếu hụt -> đơn mua NCC -> nhận hàng (cộng kho)
+            Route::get('purchase', [PurchaseController::class, 'index'])->name('purchase.index');
+            Route::get('purchase/create', [PurchaseController::class, 'create'])->name('purchase.create');
+            Route::post('purchase', [PurchaseController::class, 'store'])->name('purchase.store');
+            Route::post('purchase/{order}/receive', [PurchaseController::class, 'receive'])->whereNumber('order')->name('purchase.receive');
+            Route::post('purchase/{order}/cancel', [PurchaseController::class, 'cancel'])->whereNumber('order')->name('purchase.cancel');
 
             // Phân hệ 3: lập kế hoạch từ dự báo, sửa BOM, duyệt phiếu hủy / kiểm kê
             Route::get('plans', [ProductionPlanController::class, 'index'])->name('plans.index');
@@ -140,7 +146,7 @@ Route::middleware(['auth', CheckRole::class.':manager,staff'])
 
             Route::post('stocktake/{stocktake}/approve', [StocktakeController::class, 'approve'])->name('stocktake.approve');
             Route::post('stocktake/{stocktake}/reject', [StocktakeController::class, 'reject'])->name('stocktake.reject');
-            // Route::get('reports/revenue', ...)->name('reports.revenue');
+            Route::get('reports/revenue', [ReportController::class, 'revenue'])->name('reports.revenue');
 
             // Quản lý tài khoản nhân viên (tạo / sửa / khóa) và xem tài khoản khách hàng (chỉ đọc)
             Route::get('staff', [StaffAccountController::class, 'index'])->name('staff.index');
