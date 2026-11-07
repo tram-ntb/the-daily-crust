@@ -4,9 +4,9 @@ namespace App\Services;
 
 use App\Models\Ingredient;
 use App\Models\Product;
-use App\Models\ProductLot;
 use App\Models\ProductionForecast;
 use App\Models\ProductionPlan;
+use App\Models\ProductLot;
 use App\Models\User;
 use Carbon\Carbon;
 use Illuminate\Support\Collection;
@@ -89,7 +89,7 @@ class ProductionPlanningService
                     'approved' => $plan?->approved_at !== null,
                     'acknowledged' => $plan?->acknowledged_at !== null,
                     'batches' => (int) ($plan?->batches_count ?? 0),
-                    'locked' => $plan !== null && ($plan->acknowledged_at !== null || (int) $plan->batches_count > 0),
+                    'locked' => $plan !== null && ($plan->approved_at !== null || $plan->acknowledged_at !== null || (int) $plan->batches_count > 0),
                     'bom' => $p->boms->map(fn ($b) => [
                         'ingredient_id' => (int) $b->ingredient_id,
                         'name' => $b->ingredient->ingredient_name ?? ('NL #'.$b->ingredient_id),
@@ -140,6 +140,13 @@ class ProductionPlanningService
 
                 if ($plan && ($plan->acknowledged_at !== null || (int) $plan->batches_count > 0)) {
                     $stats['skipped']++;   // đã khóa
+
+                    continue;
+                }
+
+                if ($plan?->approved_at !== null) {
+                    $errors[] = "{$product->vi_name}: kế hoạch đã duyệt, hãy thu hồi duyệt trước khi chỉnh sửa.";
+
                     continue;
                 }
 
@@ -148,17 +155,20 @@ class ProductionPlanningService
                         $plan->delete();
                         $stats['deleted']++;
                     }
+
                     continue;
                 }
 
                 if ($product->boms->isEmpty()) {
                     $errors[] = "{$product->vi_name}: chưa có công thức BOM, hãy khai báo BOM trước khi lập kế hoạch.";
+
                     continue;
                 }
 
                 $forecast = $forecasts->get($productId)?->predicted_qty;
                 if ($forecast !== null && $qty !== (int) $forecast && $reason === '') {
                     $errors[] = "{$product->vi_name}: sản lượng ({$qty}) khác dự báo ({$forecast}), vui lòng nhập lý do điều chỉnh.";
+
                     continue;
                 }
 

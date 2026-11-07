@@ -54,6 +54,12 @@ class ProductionPlanController extends Controller
             return back()->withErrors($e->errors())->withInput();
         }
 
+        if ($data['action'] === 'approve' && $stats['approved'] === 0) {
+            return back()
+                ->withErrors(['rows' => 'Không có dòng sản phẩm hợp lệ để lưu và duyệt. Vui lòng nhập sản lượng lớn hơn 0 cho ít nhất một sản phẩm.'])
+                ->withInput();
+        }
+
         if ($stats['approved'] > 0) {
             $this->notifyKitchen($date, (int) $stats['approved']);
         }

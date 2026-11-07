@@ -26,19 +26,19 @@ class ProductionController extends Controller
     public function __construct(
         private readonly ProductionService $production,
         private readonly NotifyService $notify,
-    ) {
-    }
+    ) {}
 
     public function index(Request $request): View
     {
         $user = $request->user();
-        $date = $request->filled('date') ? Carbon::parse($request->input('date')) : Carbon::today();
+        $date = $request->filled('date') ? Carbon::parse($request->input('date'))->startOfDay() : Carbon::today()->startOfDay();
 
         $plans = ProductionPlan::query()
             ->with('product')
             ->whereHas('product', fn ($q) => $q->batchable())     // đồ uống pha theo đơn không qua màn hình ghi nhận mẻ
             ->withSum('batches as passed_total', 'passed_qty')
             ->withSum('batches as failed_total', 'failed_qty')
+            ->whereNotNull('approved_at')
             ->whereDate('plan_date', $date)
             ->orderBy('plan_id')
             ->get()
@@ -47,7 +47,7 @@ class ProductionController extends Controller
                 $plan->shortages = $this->production->requirements($plan, $plan->remaining)->where('short', '>', 0)->values();
             });
 
-        $recentDates = ProductionPlan::query()->select('plan_date')->distinct()->orderByDesc('plan_date')->limit(6)->pluck('plan_date')
+        $recentDates = ProductionPlan::query()->select('plan_date')->whereNotNull('approved_at')->distinct()->orderByDesc('plan_date')->limit(6)->pluck('plan_date')
             ->map(fn ($d) => Carbon::parse($d)->toDateString());
 
         $batches = ProductionBatch::query()->with(['product', 'user'])
@@ -87,6 +87,7 @@ class ProductionController extends Controller
 
         $plans = ProductionPlan::query()->with('product')
             ->whereHas('product', fn ($q) => $q->batchable())
+            ->whereNotNull('approved_at')
             ->whereDate('plan_date', $date)
             ->get()
             ->filter(fn (ProductionPlan $p) => $p->isApproved() && ! $p->isAcknowledged());

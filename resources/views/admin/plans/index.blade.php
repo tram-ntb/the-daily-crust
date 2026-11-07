@@ -160,7 +160,7 @@
                                                         <i class="fa-solid text-[9px]" :class="stateOf(r).icon"></i><span x-text="stateOf(r).label"></span>
                                                     </span>
                                                     <span x-show="r.batches > 0" x-cloak class="tnum text-[11px] text-stone-500" x-text="r.batches + ' mẻ'"></span>
-                                                    <template x-if="r.plan_id !== null && !r.locked && !locked">
+                                                    <template x-if="r.plan_id !== null && !locked && !r.acknowledged && r.batches === 0">
                                                         <span>
                                                             <button type="button" x-show="!r.approved" @click="rowAction('approve', r.plan_id)" class="text-xs font-semibold text-mint-700 hover:underline">Duyệt</button>
                                                             <button type="button" x-show="r.approved" x-cloak @click="rowAction('unapprove', r.plan_id)" class="text-xs font-semibold text-amber-700 hover:underline">Thu hồi</button>
