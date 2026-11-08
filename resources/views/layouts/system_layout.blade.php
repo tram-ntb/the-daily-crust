@@ -165,6 +165,7 @@
                         {!! $navLink('admin.purchase.index', 'fa-cart-flatbed', 'Phiếu mua & Đơn mua NCC') !!}
                         {!! $navHeading('Kinh doanh') !!}
                         {!! $navLink('admin.reports.revenue', 'fa-file-waveform', 'Báo cáo & Thống kê doanh thu') !!}
+                        {!! $navLink('admin.shift-report', 'fa-clipboard-user', 'Báo cáo ca làm việc') !!}
                         {!! $navHeading('Hệ thống') !!}
                         {!! $navLink('admin.staff.index', 'fa-users-gear', 'Quản lý tài khoản nhân viên') !!}
                         {!! $navLink('admin.customers.index', 'fa-address-book', 'Tài khoản khách hàng') !!}
