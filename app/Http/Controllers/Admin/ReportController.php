@@ -107,23 +107,28 @@ class ReportController extends Controller
         $date = $request->filled('date') ? Carbon::parse($request->input('date'))->startOfDay() : Carbon::today();
         $next = $date->copy()->addDay();
 
+        // keyBy (int): các bản ghi có người thực hiện NULL gom về khóa 0, không bị loại khỏi báo cáo.
         $pos = DB::table('orders')->where('order_channel', Order::CHANNEL_POS)->where('order_datetime', '>=', $date)->where('order_datetime', '<', $next)
             ->where(fn ($w) => $w->whereNull('status')->orWhere('status', '!=', 'Cancelled'))
-            ->selectRaw('created_by uid, COUNT(*) orders, SUM(total_amount) revenue')->groupBy('created_by')->get()->keyBy('uid');
+            ->selectRaw('created_by uid, COUNT(*) orders, SUM(total_amount) revenue')->groupBy('created_by')->get()
+            ->keyBy(fn ($r) => (int) $r->uid);
         $batches = DB::table('production_batches')->where('batch_date', '>=', $date)->where('batch_date', '<', $next)
-            ->selectRaw('user_id uid, COUNT(*) batches, SUM(passed_qty) passed, SUM(failed_qty) failed')->groupBy('user_id')->get()->keyBy('uid');
+            ->selectRaw('user_id uid, COUNT(*) batches, SUM(passed_qty) passed, SUM(failed_qty) failed')->groupBy('user_id')->get()
+            ->keyBy(fn ($r) => (int) $r->uid);
         $waste = DB::table('inventory_waste')->where('ticket_date', '>=', $date)->where('ticket_date', '<', $next)
-            ->selectRaw('user_id uid, COUNT(*) tickets, SUM(total_cost) cost')->groupBy('user_id')->get()->keyBy('uid');
+            ->selectRaw('user_id uid, COUNT(*) tickets, SUM(total_cost) cost')->groupBy('user_id')->get()
+            ->keyBy(fn ($r) => (int) $r->uid);
 
-        $ids = $pos->keys()->merge($batches->keys())->merge($waste->keys())->filter()->unique();
-        $users = DB::table('users')->whereIn('user_id', $ids)->get(['user_id', 'full_name', 'position'])->keyBy('user_id');
+        $ids = $pos->keys()->merge($batches->keys())->merge($waste->keys())->unique();
+        $users = DB::table('users')->whereIn('user_id', $ids->filter()->values())->get(['user_id', 'full_name', 'position'])->keyBy('user_id');
 
         $rows = $ids->map(fn ($id) => [
-            'name' => $users[$id]->full_name ?? "#{$id}", 'position' => $users[$id]->position ?? '',
+            'name' => $id === 0 ? '(Chưa gán nhân viên)' : ($users[$id]->full_name ?? "#{$id}"),
+            'position' => $id === 0 ? '' : ($users[$id]->position ?? ''),
             'orders' => (int) ($pos[$id]->orders ?? 0), 'revenue' => (int) ($pos[$id]->revenue ?? 0),
             'batches' => (int) ($batches[$id]->batches ?? 0), 'passed' => (int) ($batches[$id]->passed ?? 0), 'failed' => (int) ($batches[$id]->failed ?? 0),
             'tickets' => (int) ($waste[$id]->tickets ?? 0), 'cost' => (int) ($waste[$id]->cost ?? 0),
-        ])->sortBy('name')->values();
+        ])->sortBy([['name', 'asc']])->values();
 
         return view('admin.reports.shift', ['date' => $date, 'rows' => $rows]);
     }
