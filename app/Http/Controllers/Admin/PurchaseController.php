@@ -8,11 +8,14 @@ use App\Models\IngredientStockTransaction;
 use App\Models\ProductionPlan;
 use App\Models\PurchaseOrder;
 use App\Models\PurchaseOrderDetail;
+use App\Models\PurchaseRequisition;
+use App\Models\PurchaseRequisitionDetail;
 use App\Models\Supplier;
 use Carbon\Carbon;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Str;
 use Illuminate\Validation\ValidationException;
 use Illuminate\View\View;
 
@@ -93,6 +96,14 @@ class PurchaseController extends Controller
             $poId = (int) DB::table('purchase_orders')->lockForUpdate()->max('po_id') + 1;
             $detailId = (int) DB::table('purchase_order_details')->lockForUpdate()->max('detail_id');
 
+            $expected = $data['expected_delivery_date'] ?? now()->addDays((int) ($supplier->lead_time_days ?? 1));
+            $now = now();
+            $uid = $request->user()->user_id;
+
+            // Phiếu đề xuất (purchase_requisitions): chụp lại tồn kho/tối thiểu tại thời điểm lập làm căn cứ cho đơn mua
+            $reqId = (int) DB::table('purchase_requisitions')->lockForUpdate()->max('requisition_id') + 1;
+            $reqDetailId = (int) DB::table('purchase_requisition_details')->lockForUpdate()->max('detail_id');
+
             $total = 0;
             foreach ($lines as $l) {
                 $ing = $ings[$l['id']] ?? null;
@@ -105,18 +116,34 @@ class PurchaseController extends Controller
                     'ordered_qty' => $l['qty'], 'received_qty' => 0, 'unit' => $ing->unit,
                     'unit_price' => $price, 'discount' => 0, 'tax' => 0, 'total_price' => $price * $l['qty'],
                 ]);
+                PurchaseRequisitionDetail::create([
+                    'detail_id' => ++$reqDetailId, 'requisition_id' => $reqId, 'ingredient_id' => $ing->ingredient_id,
+                    'current_stock' => (int) $ing->stock_quantity, 'min_stock' => (int) $ing->min_stock_level,
+                    'requested_qty' => $l['qty'], 'unit' => $ing->unit,
+                    'estimated_unit_price' => $price, 'estimated_total_price' => $price * $l['qty'],
+                ]);
                 $total += $price * $l['qty'];
             }
 
-            return PurchaseOrder::create([
-                'po_id' => $poId, 'supplier_id' => $data['supplier_id'], 'order_date' => now(),
-                'expected_delivery_date' => $data['expected_delivery_date'] ?? now()->addDays((int) ($supplier->lead_time_days ?? 1)),
-                'total_amount' => $total, 'currency' => 'VND', 'note' => $data['note'] ?? null,
-                'approved_by' => $request->user()->user_id, 'po_status' => PurchaseOrder::PENDING, 'created_by' => $request->user()->user_id,
+            PurchaseRequisition::create([
+                'requisition_id' => $reqId, 'requisition_date' => $now, 'status' => PurchaseRequisition::APPROVED,
+                'reason' => Str::limit('Đơn mua #'.$poId.': '.(filled($data['note'] ?? null) ? $data['note'] : 'bổ sung nguyên liệu theo gợi ý thiếu hụt'), 250, ''),
+                'supplier_id' => $data['supplier_id'], 'expected_delivery_date' => $expected,
+                'created_by' => $uid, 'approved_by' => $uid, 'approved_at' => $now, 'created_at' => $now,
             ]);
+
+            $po = PurchaseOrder::create([
+                'po_id' => $poId, 'supplier_id' => $data['supplier_id'], 'order_date' => $now,
+                'expected_delivery_date' => $expected,
+                'total_amount' => $total, 'currency' => 'VND', 'note' => $data['note'] ?? null,
+                'approved_by' => $uid, 'po_status' => PurchaseOrder::PENDING, 'created_by' => $uid,
+            ]);
+            $po->requisition_id = $reqId;
+
+            return $po;
         });
 
-        return redirect()->route('admin.purchase.index')->with('success', "Đã lập đơn mua #{$po->po_id} ({$po->details()->count()} nguyên liệu, ".number_format($po->total_amount).'đ).');
+        return redirect()->route('admin.purchase.index')->with('success', "Đã lập phiếu đề xuất #{$po->requisition_id} và đơn mua #{$po->po_id} ({$po->details()->count()} nguyên liệu, ".number_format($po->total_amount).'đ).');
     }
 
     /** Nhận hàng: cộng tồn nguyên liệu theo số thực nhận và ghi sổ nhập kho. */
